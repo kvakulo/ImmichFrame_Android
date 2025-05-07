@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var serverSettings: Helpers.ServerSettings
     private var retrofit: Retrofit? = null
     private lateinit var apiService: Helpers.ApiService
-    private lateinit var dimServer: DimHttpServer
+    private lateinit var dimServer: RpcHttpServer
     private var isWeatherTimerRunning = false
     private var useWebView = true
     private var keepScreenOn = true
@@ -161,7 +161,7 @@ class MainActivity : AppCompatActivity() {
             startImageTimer()
         }
 
-        dimServer = DimHttpServer { dim ->
+        dimServer = RpcHttpServer { dim ->
             runOnUiThread {
                 screenDim(dim)
             }
