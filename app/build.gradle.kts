@@ -74,6 +74,7 @@ dependencies {
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.retrofit)
     implementation(libs.retrofitgson)
+    implementation(libs.nanohttpd)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
