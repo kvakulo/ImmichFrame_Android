@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var serverSettings: Helpers.ServerSettings
     private var retrofit: Retrofit? = null
     private lateinit var apiService: Helpers.ApiService
-    private lateinit var dimServer: RpcHttpServer
+    private lateinit var rcpServer: RpcHttpServer
     private var isWeatherTimerRunning = false
     private var useWebView = true
     private var keepScreenOn = true
@@ -123,50 +123,37 @@ class MainActivity : AppCompatActivity() {
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
         swipeRefreshLayout.setOnRefreshListener {
             swipeRefreshLayout.isRefreshing = false
-            val intent = Intent(this, SettingsActivity::class.java)
-            stopImageTimer()
-            settingsLauncher.launch(intent)
+            settingsAction()
         }
         btnPrevious.setOnClickListener {
             val toast = Toast.makeText(this, "Previous", Toast.LENGTH_SHORT)
             toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.START, 0, 0)
             toast.show()
-            val safePreviousImage = previousImage
-            if (safePreviousImage != null) {
-                stopImageTimer()
-                showImage(safePreviousImage)
-                startImageTimer()
-            }
+            previousAction()
         }
 
         btnPause.setOnClickListener {
             val toast = Toast.makeText(this, "Pause", Toast.LENGTH_SHORT)
             toast.setGravity(Gravity.CENTER, 0, 0)
             toast.show()
-            zoomAnimator?.cancel()
-            if (isImageTimerRunning) {
-                stopImageTimer()
-            } else {
-                getNextImage()
-                startImageTimer()
-            }
+            pauseAction()
         }
 
         btnNext.setOnClickListener {
             val toast = Toast.makeText(this, "Next", Toast.LENGTH_SHORT)
             toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.END, 0, 0)
             toast.show()
-            stopImageTimer()
-            getNextImage()
-            startImageTimer()
+            nextAction()
         }
 
-        dimServer = RpcHttpServer { dim ->
-            runOnUiThread {
-                screenDim(dim)
-            }
-        }
-        dimServer.start()
+        rcpServer = RpcHttpServer(
+            onDimCommand = { dim -> runOnUiThread { screenDim(dim) } },
+            onNextCommand = { runOnUiThread {nextAction()} },
+            onPreviousCommand = { runOnUiThread {previousAction()} },
+            onPauseCommand = { runOnUiThread {pauseAction()} },
+            onSettingsCommand = { runOnUiThread {settingsAction()} }
+        )
+        rcpServer.start()
 
         val savedUrl = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE).getString("webview_url", "") ?: ""
         if (savedUrl.isBlank()) {
@@ -623,50 +610,87 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun previousAction(){
+        if (useWebView) {
+            // Simulate a key press
+            webView.requestFocus()
+            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
+            dispatchKeyEvent(event)
+        }
+        else {
+            val safePreviousImage = previousImage
+            if (safePreviousImage != null) {
+                stopImageTimer()
+                showImage(safePreviousImage)
+                startImageTimer()
+            }
+        }
+    }
+
+    private fun nextAction(){
+        if (useWebView) {
+            // Simulate a key press
+            webView.requestFocus()
+            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
+            dispatchKeyEvent(event)
+        }
+        else {
+            stopImageTimer()
+            getNextImage()
+            startImageTimer()
+        }
+    }
+
+    private fun pauseAction() {
+        if (useWebView) {
+            // Simulate a key press
+            webView.requestFocus()
+            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SPACE)
+            dispatchKeyEvent(event)
+        } else {
+            zoomAnimator?.cancel()
+            if (isImageTimerRunning) {
+                stopImageTimer()
+            } else {
+                getNextImage()
+                startImageTimer()
+            }
+        }
+    }
+
+    private fun settingsAction() {
+        val intent = Intent(this, SettingsActivity::class.java)
+        stopImageTimer()
+        settingsLauncher.launch(intent)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    val intent = Intent(this, SettingsActivity::class.java)
-                    stopImageTimer()
-                    settingsLauncher.launch(intent)
+                    settingsAction()
                     return true
                 }
 
                 KeyEvent.KEYCODE_DPAD_CENTER -> {
-                    // Simulate a Space key press
-                    val spaceEvent = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SPACE)
-                    dispatchKeyEvent(spaceEvent)
+                    pauseAction()
                     return true
                 }
             }
             if (!useWebView) {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        val safePreviousImage = previousImage
-                        if (safePreviousImage != null) {
-                            stopImageTimer()
-                            showImage(safePreviousImage)
-                            startImageTimer()
-                        }
+                        previousAction()
                         return true
                     }
 
                     KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        stopImageTimer()
-                        getNextImage()
-                        startImageTimer()
+                        nextAction()
                         return true
                     }
 
                     KeyEvent.KEYCODE_SPACE ->{
-                        zoomAnimator?.cancel()
-                        if (isImageTimerRunning) {
-                            stopImageTimer()
-                        } else {
-                            getNextImage()
-                            startImageTimer()
-                        }
+                        pauseAction()
                         return true
                     }
                 }
@@ -779,7 +803,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        dimServer.stop()
+        rcpServer.stop()
         handler.removeCallbacksAndMessages(null)
     }
 }
