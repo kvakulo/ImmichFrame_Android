@@ -1,7 +1,7 @@
 package com.immichframe.immichframe
 import fi.iki.elonen.NanoHTTPD
 
-class RpcHttpServer(private val onDimCommand: (Boolean) -> Unit) : NanoHTTPD(8080) {
+class RpcHttpServer(private val onDimCommand: (Boolean) -> Unit) : NanoHTTPD(53287) {
 
     override fun serve(session: IHTTPSession): Response {
         return when (session.uri) {
