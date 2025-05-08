@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var serverSettings: Helpers.ServerSettings
     private var retrofit: Retrofit? = null
     private lateinit var apiService: Helpers.ApiService
+    private lateinit var dimServer: RpcHttpServer
     private var isWeatherTimerRunning = false
     private var useWebView = true
     private var keepScreenOn = true
@@ -159,6 +160,14 @@ class MainActivity : AppCompatActivity() {
             getNextImage()
             startImageTimer()
         }
+
+        dimServer = RpcHttpServer { dim ->
+            runOnUiThread {
+                screenDim(dim)
+            }
+        }
+        dimServer.start()
+
         val savedUrl = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE).getString("webview_url", "") ?: ""
         if (savedUrl.isBlank()) {
             val intent = Intent(this, SettingsActivity::class.java)
@@ -770,6 +779,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        dimServer.stop()
         handler.removeCallbacksAndMessages(null)
     }
 }
