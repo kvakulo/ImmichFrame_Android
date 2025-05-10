@@ -7,6 +7,7 @@ class RpcHttpServer(
     private val onScreenOnCommand: () -> Unit,
     private val onScreenOffCommand: () -> Unit,
     private val onBrightnessCommand: (Float) -> Unit,
+    private val onRebootCommand: () -> Unit,
     private val onNextCommand: () -> Unit,
     private val onPreviousCommand: () -> Unit,
     private val onPauseCommand: () -> Unit,
@@ -39,6 +40,10 @@ class RpcHttpServer(
                 } else {
                     newFixedLengthResponse("Brightness parameter missing or invalid (should be a value between 0.00 and 1.00, or -1.00 to reset to default screen brightness)")
                 }
+            }
+            "/reboot" -> {
+                onRebootCommand()
+                newFixedLengthResponse("Reboot")
             }
             "/next" -> {
                 onNextCommand()

@@ -153,6 +153,7 @@ class MainActivity : AppCompatActivity() {
             onScreenOffCommand = { runOnUiThread { turnScreenOff() }},
             onScreenOnCommand = { runOnUiThread { turnScreenOn() }},
             onBrightnessCommand = { brightness -> runOnUiThread { screenBrightness(brightness) }},
+            onRebootCommand = { runOnUiThread { reboot() }},
             onNextCommand = { runOnUiThread { nextAction() } },
             onPreviousCommand = { runOnUiThread { previousAction() } },
             onPauseCommand = { runOnUiThread { pauseAction() } },
@@ -760,6 +761,14 @@ class MainActivity : AppCompatActivity() {
         val lp = window.attributes
         lp.screenBrightness = brightness
         window.attributes = lp
+    }
+
+    private fun reboot() {
+        try {
+            Runtime.getRuntime().exec("su -c reboot")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun screenDim(dim: Boolean) {
