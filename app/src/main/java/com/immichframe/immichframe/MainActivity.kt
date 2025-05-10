@@ -4,6 +4,7 @@ import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -13,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
@@ -148,10 +150,12 @@ class MainActivity : AppCompatActivity() {
 
         rcpServer = RpcHttpServer(
             onDimCommand = { dim -> runOnUiThread { screenDim(dim) } },
-            onNextCommand = { runOnUiThread {nextAction()} },
-            onPreviousCommand = { runOnUiThread {previousAction()} },
-            onPauseCommand = { runOnUiThread {pauseAction()} },
-            onSettingsCommand = { runOnUiThread {settingsAction()} }
+            onScreenOffCommand = { runOnUiThread { turnScreenOff() }},
+            onScreenOnCommand = { runOnUiThread { turnScreenOn() }},
+            onNextCommand = { runOnUiThread { nextAction() } },
+            onPreviousCommand = { runOnUiThread { previousAction() } },
+            onPauseCommand = { runOnUiThread { pauseAction() } },
+            onSettingsCommand = { runOnUiThread { settingsAction() } }
         )
         rcpServer.start()
 
@@ -720,6 +724,34 @@ class MainActivity : AppCompatActivity() {
                             or View.SYSTEM_UI_FLAG_FULLSCREEN
                             or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                     )
+        }
+    }
+
+    private fun isScreenOn(context: Context): Boolean {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return powerManager.isInteractive
+    }
+
+    private fun toggleScreen() {
+        try {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "input keyevent 26"))
+            process.waitFor()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun turnScreenOff() {
+        if (isScreenOn(this)) {
+            screenDim(true)
+            toggleScreen()
+        }
+    }
+
+    private fun turnScreenOn() {
+        if (!isScreenOn(this)) {
+            toggleScreen()
+            screenDim(false)
         }
     }
 

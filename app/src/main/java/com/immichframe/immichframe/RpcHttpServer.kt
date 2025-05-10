@@ -4,6 +4,8 @@ import fi.iki.elonen.NanoHTTPD
 
 class RpcHttpServer(
     private val onDimCommand: (Boolean) -> Unit,
+    private val onScreenOnCommand: () -> Unit,
+    private val onScreenOffCommand: () -> Unit,
     private val onNextCommand: () -> Unit,
     private val onPreviousCommand: () -> Unit,
     private val onPauseCommand: () -> Unit,
@@ -19,6 +21,14 @@ class RpcHttpServer(
             "/undim" -> {
                 onDimCommand(false)
                 newFixedLengthResponse("Undimmed")
+            }
+            "/screenoff" -> {
+                onScreenOffCommand()
+                newFixedLengthResponse("Screen Off")
+            }
+            "/screenon" -> {
+                onScreenOnCommand()
+                newFixedLengthResponse("Screen On")
             }
             "/next" -> {
                 onNextCommand()
