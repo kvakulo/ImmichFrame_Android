@@ -152,6 +152,7 @@ class MainActivity : AppCompatActivity() {
             onDimCommand = { dim -> runOnUiThread { screenDim(dim) } },
             onScreenOffCommand = { runOnUiThread { turnScreenOff() }},
             onScreenOnCommand = { runOnUiThread { turnScreenOn() }},
+            onBrightnessCommand = { brightness -> runOnUiThread { screenBrightness(brightness) }},
             onNextCommand = { runOnUiThread { nextAction() } },
             onPreviousCommand = { runOnUiThread { previousAction() } },
             onPauseCommand = { runOnUiThread { pauseAction() } },
@@ -753,6 +754,12 @@ class MainActivity : AppCompatActivity() {
             toggleScreen()
             screenDim(false)
         }
+    }
+
+    private fun screenBrightness(brightness: Float) {
+        val lp = window.attributes
+        lp.screenBrightness = brightness
+        window.attributes = lp
     }
 
     private fun screenDim(dim: Boolean) {

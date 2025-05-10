@@ -6,6 +6,7 @@ class RpcHttpServer(
     private val onDimCommand: (Boolean) -> Unit,
     private val onScreenOnCommand: () -> Unit,
     private val onScreenOffCommand: () -> Unit,
+    private val onBrightnessCommand: (Float) -> Unit,
     private val onNextCommand: () -> Unit,
     private val onPreviousCommand: () -> Unit,
     private val onPauseCommand: () -> Unit,
@@ -29,6 +30,15 @@ class RpcHttpServer(
             "/screenon" -> {
                 onScreenOnCommand()
                 newFixedLengthResponse("Screen On")
+            }
+            "/brightness" -> {
+                val brightness = session.parameters["value"]?.firstOrNull()?.toFloatOrNull()
+                if (brightness != null && brightness >= -1 && brightness <= 1) {
+                    onBrightnessCommand(brightness)
+                    newFixedLengthResponse("Brightness set to $brightness")
+                } else {
+                    newFixedLengthResponse("Brightness parameter missing or invalid (should be a value between 0.00 and 1.00, or -1.00 to reset to default screen brightness)")
+                }
             }
             "/next" -> {
                 onNextCommand()
