@@ -732,8 +732,13 @@ class MainActivity : AppCompatActivity() {
                 dimOverlay.apply {
                     visibility = View.VISIBLE
                     alpha = 0f
-                    stopImageTimer()
-                    stopWeatherTimer()
+                    if(useWebView){
+                        webView.loadUrl("about:blank")
+                    }
+                    else {
+                        stopImageTimer()
+                        stopWeatherTimer()
+                    }
                     animate()
                         .alpha(0.99f)
                         .setDuration(500L)
