@@ -151,7 +151,8 @@ class MainActivity : AppCompatActivity() {
             onNextCommand = { runOnUiThread {nextAction()} },
             onPreviousCommand = { runOnUiThread {previousAction()} },
             onPauseCommand = { runOnUiThread {pauseAction()} },
-            onSettingsCommand = { runOnUiThread {settingsAction()} }
+            onSettingsCommand = { runOnUiThread {settingsAction()} },
+            onBrightnessCommand = { brightness -> runOnUiThread { screenBrightnessAction(brightness) }},
         )
         rcpServer.start()
 
@@ -662,6 +663,12 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, SettingsActivity::class.java)
         stopImageTimer()
         settingsLauncher.launch(intent)
+    }
+
+    private fun screenBrightnessAction(brightness: Float) {
+        val lp = window.attributes
+        lp.screenBrightness = brightness
+        window.attributes = lp
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
