@@ -541,7 +541,9 @@ class MainActivity : AppCompatActivity() {
                     error: WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
-                    view?.reload()
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        view?.reload()
+                    }, 3000)
                 }
             }
             webView.settings.javaScriptEnabled = true
