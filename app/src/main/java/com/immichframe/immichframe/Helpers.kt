@@ -167,21 +167,21 @@ object Helpers {
         @GET("api/Weather")
         fun getWeather(): Call<Weather>
     }
-    fun createRetrofit(baseUrl: String, authSecret: String): Retrofit {
+    fun createRetrofit(baseUrl: String, customHeaders: Map<String, String> = emptyMap()): Retrofit {
         val normalizedBaseUrl = if (!baseUrl.endsWith("/")) "$baseUrl/" else baseUrl
 
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
+                val builder = originalRequest.newBuilder()
 
-                val request = if (authSecret.isNotEmpty()) {
-                    originalRequest.newBuilder()
-                        .addHeader("Authorization", "Bearer $authSecret")
-                        .build()
-                } else {
-                    originalRequest
+                for ((key, value) in customHeaders) {
+                    if (key.isNotBlank() && value.isNotBlank()) {
+                        builder.addHeader(key.trim(), value.trim())
+                    }
                 }
 
+                val request = builder.build()
                 chain.proceed(request)
             }
             .build()

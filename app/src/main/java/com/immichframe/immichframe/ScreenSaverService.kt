@@ -8,7 +8,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -26,6 +25,7 @@ import android.webkit.WebViewClient
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -63,6 +63,14 @@ class ScreenSaverService : DreamService() {
             if (isImageTimerRunning) {
                 handler.postDelayed(this, (serverSettings.interval * 1000).toLong())
                 getNextImage()
+            }
+        }
+    }
+    private val weatherRunnable = object : Runnable {
+        override fun run() {
+            if (isWeatherTimerRunning) {
+                handler.postDelayed(this, 600000)
+                getWeather()
             }
         }
     }
@@ -387,12 +395,19 @@ class ScreenSaverService : DreamService() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun loadSettings() {
-        val sharedPreferences = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE)
-        blurredBackground = sharedPreferences.getBoolean("blurredBackground", true)
-        showCurrentDate = sharedPreferences.getBoolean("showCurrentDate", true)
-        var savedUrl = sharedPreferences.getString("webview_url", "") ?: ""
-        useWebView = sharedPreferences.getBoolean("useWebView", true)
-        val authSecret = sharedPreferences.getString("authSecret", "") ?: ""
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        blurredBackground = prefs.getBoolean("blurredBackground", true)
+        showCurrentDate = prefs.getBoolean("showCurrentDate", true)
+        val savedUrl = prefs.getString("webview_url", "") ?: ""
+        useWebView = prefs.getBoolean("useWebView", true)
+        val headers = mutableMapOf<String, String>()
+        for (i in 1..2) {
+            val name = prefs.getString("header_name_${i}", "")?.trim()
+            val value = prefs.getString("header_value_${i}", "")?.trim()
+            if (!name.isNullOrEmpty() && !value.isNullOrEmpty()) {
+                headers[name] = value
+            }
+        }
 
         webView.visibility = if (useWebView) View.VISIBLE else View.GONE
         imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
@@ -401,17 +416,9 @@ class ScreenSaverService : DreamService() {
         txtDateTime.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
 
         if (useWebView) {
-            savedUrl = if (authSecret.isNotEmpty()) {
-                Uri.parse(savedUrl)
-                    .buildUpon()
-                    .appendQueryParameter("authsecret", authSecret)
-                    .build()
-                    .toString()
-            } else {
-                savedUrl
-            }
 
-            handler.removeCallbacksAndMessages(null)
+            handler.removeCallbacks(imageRunnable)
+            handler.removeCallbacks(weatherRunnable)
             webView.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(
                     view: WebView?,
@@ -439,9 +446,9 @@ class ScreenSaverService : DreamService() {
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl)
+            webView.loadUrl(savedUrl, headers)
         } else {
-            retrofit = Helpers.createRetrofit(savedUrl, authSecret)
+            retrofit = Helpers.createRetrofit(savedUrl, headers)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
             getServerSettings(
                 onSuccess = { settings ->

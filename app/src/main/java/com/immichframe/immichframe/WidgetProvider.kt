@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.widget.RemoteViews
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,7 +35,7 @@ class WidgetProvider : AppWidgetProvider() {
 
     companion object {
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
-            val prefs = context.getSharedPreferences("ImmichFramePrefs", Context.MODE_PRIVATE)
+            val prefs = PreferenceManager.getDefaultSharedPreferences(context)
             val backgroundType =
                 prefs.getString("widgetBackground$appWidgetId", "square") ?: "square"
 
@@ -74,10 +75,17 @@ class WidgetProvider : AppWidgetProvider() {
 
             try {
                 val savedUrl = prefs.getString("webview_url", "") ?: ""
-                val authSecret = prefs.getString("authSecret", "") ?: ""
+                val headers = mutableMapOf<String, String>()
+                for (i in 1..2) {
+                    val name = prefs.getString("header_name_${i}", "")?.trim()
+                    val value = prefs.getString("header_value_${i}", "")?.trim()
+                    if (!name.isNullOrEmpty() && !value.isNullOrEmpty()) {
+                        headers[name] = value
+                    }
+                }
 
                 if (savedUrl.isNotEmpty()) {
-                    val retrofit = Helpers.createRetrofit(savedUrl, authSecret)
+                    val retrofit = Helpers.createRetrofit(savedUrl, headers)
                     val apiService = retrofit.create(Helpers.ApiService::class.java)
 
                     CoroutineScope(Dispatchers.IO).launch {

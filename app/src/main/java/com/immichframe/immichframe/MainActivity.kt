@@ -8,7 +8,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -25,6 +24,7 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -35,6 +35,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
+import androidx.preference.PreferenceManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import retrofit2.Call
 import retrofit2.Callback
@@ -44,6 +45,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.*
+import okhttp3.OkHttpClient
+import okhttp3.Request
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -155,8 +158,8 @@ class MainActivity : AppCompatActivity() {
             onBrightnessCommand = { brightness -> runOnUiThread { screenBrightnessAction(brightness) }},
         )
         rcpServer.start()
-
-        val savedUrl = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE).getString("webview_url", "") ?: ""
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        val savedUrl = prefs.getString("webview_url", "") ?: ""
         if (savedUrl.isBlank()) {
             val intent = Intent(this, SettingsActivity::class.java)
             settingsLauncher.launch(intent)
@@ -473,14 +476,21 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun loadSettings() {
-        val sharedPreferences = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE)
-        blurredBackground = sharedPreferences.getBoolean("blurredBackground", true)
-        showCurrentDate = sharedPreferences.getBoolean("showCurrentDate", true)
-        var savedUrl = sharedPreferences.getString("webview_url", "") ?: ""
-        useWebView = sharedPreferences.getBoolean("useWebView", true)
-        keepScreenOn = sharedPreferences.getBoolean("keepScreenOn", true)
-        val authSecret = sharedPreferences.getString("authSecret", "") ?: ""
-        val screenDim = sharedPreferences.getBoolean("screenDim", false)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        blurredBackground = prefs.getBoolean("blurredBackground", true)
+        showCurrentDate = prefs.getBoolean("showCurrentDate", true)
+        val savedUrl = prefs.getString("webview_url", "") ?: ""
+        useWebView = prefs.getBoolean("useWebView", true)
+        keepScreenOn = prefs.getBoolean("keepScreenOn", true)
+        val screenDim = prefs.getBoolean("screenDim", false)
+        val headers = mutableMapOf<String, String>()
+        for (i in 1..2) {
+            val name = prefs.getString("header_name_${i}", "")?.trim()
+            val value = prefs.getString("header_value_${i}", "")?.trim()
+            if (!name.isNullOrEmpty() && !value.isNullOrEmpty()) {
+                headers[name] = value
+            }
+        }
 
         webView.visibility = if (useWebView) View.VISIBLE else View.GONE
         imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
@@ -506,17 +516,7 @@ class MainActivity : AppCompatActivity() {
             window.attributes = lp
         }
         if (useWebView) {
-            savedUrl = if (authSecret.isNotEmpty()) {
-                Uri.parse(savedUrl)
-                    .buildUpon()
-                    .appendQueryParameter("authsecret", authSecret)
-                    .build()
-                    .toString()
-            } else {
-                savedUrl
-            }
 
-            //handler.removeCallbacksAndMessages(null)
             handler.removeCallbacks(imageRunnable)
             handler.removeCallbacks(weatherRunnable)
 
@@ -534,7 +534,36 @@ class MainActivity : AppCompatActivity() {
                     }
                     return false
                 }
+                override fun shouldInterceptRequest(
+                    view: WebView,
+                    request: WebResourceRequest
+                ): WebResourceResponse? {
+                    val url = request.url.toString()
+                    if (!url.startsWith("http")) return super.shouldInterceptRequest(view, request)
 
+                        // Build new request with headers
+                        val clientBuilder = OkHttpClient.Builder()
+                        val newRequestBuilder = Request.Builder()
+                            .url(url)
+
+                        for ((key, value) in headers) {
+                            newRequestBuilder.addHeader(key, value)
+                        }
+
+                        val newRequest = newRequestBuilder.build()
+                        val client = clientBuilder.build()
+
+                        val response = client.newCall(newRequest).execute()
+
+                        val contentType = response.header("Content-Type", "text/html")
+                        val encoding = response.header("Content-Encoding", "utf-8")
+
+                        return WebResourceResponse(
+                            contentType,
+                            encoding,
+                            response.body()?.byteStream()
+                        )
+                }
                 override fun onReceivedError(
                     view: WebView?,
                     request: WebResourceRequest?,
@@ -547,9 +576,9 @@ class MainActivity : AppCompatActivity() {
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl)
+            webView.loadUrl(savedUrl, headers)
         } else {
-            retrofit = Helpers.createRetrofit(savedUrl, authSecret)
+            retrofit = Helpers.createRetrofit(savedUrl, headers)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
             getServerSettings(
                 onSuccess = { settings ->
@@ -769,7 +798,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkDimTime() {
-        val prefs = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
         val startHour = prefs.getInt("dimStartHour", 22)
         val startMinute = prefs.getInt("dimStartMinute", 0)
         val endHour = prefs.getInt("dimEndHour", 6)

@@ -1,0 +1,85 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Server URL -->
+    <EditTextPreference
+        android:key="webview_url"
+        android:title="ImmichFrame Server URL"
+        android:summary="Set the ImmichFrame URL"
+        android:defaultValue="http://192.168.0.100:8080"
+        android:inputType="textUri" />
+
+    <!-- Display Settings -->
+    <PreferenceCategory android:title="Display Options">
+
+        <SwitchPreferenceCompat
+            android:key="useWebView"
+            android:title="Use WebView?"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="keepScreenOn"
+            android:title="Keep Screen On?"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="blurredBackground"
+            android:title="Blurred Background?"
+            android:defaultValue="false" />
+
+        <SwitchPreferenceCompat
+            android:key="showCurrentDate"
+            android:title="Show Current Date?"
+            android:defaultValue="false" />
+    </PreferenceCategory>
+
+    <!-- Dim Screen -->
+    <PreferenceCategory android:title="Screen Dimming">
+
+        <SwitchPreferenceCompat
+            android:key="screenDim"
+            android:title="Set Screen Dim Hours?"
+            android:defaultValue="false" />
+
+        <EditTextPreference
+            android:key="dim_time_range"
+            android:title="Dim Time Range"
+            android:summary="e.g., 22:00-07:00"
+            android:defaultValue=""
+            android:dependency="screenDim" />
+    </PreferenceCategory>
+
+    <!-- Custom Headers -->
+    <PreferenceCategory android:title="Custom Headers">
+
+        <EditTextPreference
+            android:key="header_name_1"
+            android:title="Header Name 1"
+            android:defaultValue="" />
+
+        <EditTextPreference
+            android:key="header_value_1"
+            android:title="Header Value 1"
+            android:defaultValue="" />
+
+        <EditTextPreference
+            android:key="header_name_2"
+            android:title="Header Name 2"
+            android:defaultValue="" />
+
+        <EditTextPreference
+            android:key="header_value_2"
+            android:title="Header Value 2"
+            android:defaultValue="" />
+    </PreferenceCategory>
+
+    <!-- Help -->
+    <Preference
+        android:key="interactions"
+        android:title="Interactions"
+        android:summary="⬆️ Open Settings\n🆗 Play/Pause\n⬅️ Previous Image\n➡️ Next Image\n👇 Open Settings (swipe)" />
+
+    <Preference
+        android:key="closeSettings"
+        android:title="Close Settings"
+        android:icon="@android:drawable/ic_menu_close_clear_cancel" />
+</PreferenceScreen>
