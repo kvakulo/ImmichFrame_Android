@@ -35,6 +35,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import retrofit2.Call
@@ -113,6 +114,7 @@ class MainActivity : AppCompatActivity() {
         hideSystemUI()
 
         webView = findViewById(R.id.webView)
+        webView.loadUrl("about:blank")
         //webView.setBackgroundColor(Color.TRANSPARENT)
         imageView1 = findViewById(R.id.imageView1)
         imageView2 = findViewById(R.id.imageView2)
@@ -128,6 +130,7 @@ class MainActivity : AppCompatActivity() {
             swipeRefreshLayout.isRefreshing = false
             settingsAction()
         }
+
         btnPrevious.setOnClickListener {
             val toast = Toast.makeText(this, "Previous", Toast.LENGTH_SHORT)
             toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.START, 0, 0)
@@ -151,22 +154,32 @@ class MainActivity : AppCompatActivity() {
 
         rcpServer = RpcHttpServer(
             onDimCommand = { dim -> runOnUiThread { screenDim(dim) } },
-            onNextCommand = { runOnUiThread {nextAction()} },
-            onPreviousCommand = { runOnUiThread {previousAction()} },
-            onPauseCommand = { runOnUiThread {pauseAction()} },
-            onSettingsCommand = { runOnUiThread {settingsAction()} },
-            onBrightnessCommand = { brightness -> runOnUiThread { screenBrightnessAction(brightness) }},
+            onNextCommand = { runOnUiThread { nextAction() } },
+            onPreviousCommand = { runOnUiThread { previousAction() } },
+            onPauseCommand = { runOnUiThread { pauseAction() } },
+            onSettingsCommand = { runOnUiThread { settingsAction() } },
+            onBrightnessCommand = { brightness -> runOnUiThread { screenBrightnessAction(brightness) } },
         )
         rcpServer.start()
-        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
-        val savedUrl = prefs.getString("webview_url", "") ?: ""
-        if (savedUrl.isBlank()) {
-            val intent = Intent(this, SettingsActivity::class.java)
-            settingsLauncher.launch(intent)
+
+        //wait for network connection
+        lifecycleScope.launch {
+            if (!Helpers.isNetworkAvailable(this@MainActivity)) {
+                Toast.makeText(this@MainActivity, "Waiting for network...", Toast.LENGTH_SHORT)
+                    .show()
+                Helpers.waitForNetwork(this@MainActivity)
+                Toast.makeText(this@MainActivity, "Connected!", Toast.LENGTH_SHORT).show()
+            }
+            val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+            val savedUrl = prefs.getString("webview_url", "") ?: ""
+            if (savedUrl.isBlank()) {
+                val intent = Intent(this@MainActivity, SettingsActivity::class.java)
+                settingsLauncher.launch(intent)
+            } else {
+                loadSettings()
+            }
         }
-        else {
-            loadSettings()
-        }
+
     }
 
     private fun showImage(imageResponse: Helpers.ImageResponse) {
@@ -534,36 +547,38 @@ class MainActivity : AppCompatActivity() {
                     }
                     return false
                 }
+
                 override fun shouldInterceptRequest(
                     view: WebView,
                     request: WebResourceRequest
                 ): WebResourceResponse? {
                     val url = request.url.toString()
-                    if (!url.startsWith("http")) return super.shouldInterceptRequest(view, request)
+                    if (!url.startsWith("http")) {
+                        return super.shouldInterceptRequest(view, request)
+                    }
 
-                        // Build new request with headers
-                        val clientBuilder = OkHttpClient.Builder()
-                        val newRequestBuilder = Request.Builder()
-                            .url(url)
-
-                        for ((key, value) in headers) {
-                            newRequestBuilder.addHeader(key, value)
-                        }
-
-                        val newRequest = newRequestBuilder.build()
-                        val client = clientBuilder.build()
+                    return try {
+                        val client = OkHttpClient()
+                        val newRequest = Request.Builder().url(url).apply {
+                            for ((key, value) in headers) {
+                                addHeader(key, value)
+                            }
+                        }.build()
 
                         val response = client.newCall(newRequest).execute()
-
                         val contentType = response.header("Content-Type", "text/html")
                         val encoding = response.header("Content-Encoding", "utf-8")
 
-                        return WebResourceResponse(
+                        WebResourceResponse(
                             contentType,
                             encoding,
                             response.body()?.byteStream()
                         )
+                    } catch (e: Exception) {
+                        null // fallback to default handling
+                    }
                 }
+
                 override fun onReceivedError(
                     view: WebView?,
                     request: WebResourceRequest?,
@@ -600,11 +615,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onSettingsLoaded() {
-        if (serverSettings.imageFill){
+        if (serverSettings.imageFill) {
             imageView1.scaleType = ImageView.ScaleType.CENTER_CROP
             imageView2.scaleType = ImageView.ScaleType.CENTER_CROP
-        }
-        else{
+        } else {
             imageView1.scaleType = ImageView.ScaleType.FIT_CENTER
             imageView2.scaleType = ImageView.ScaleType.FIT_CENTER
         }
@@ -642,14 +656,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun previousAction(){
+    private fun previousAction() {
         if (useWebView) {
             // Simulate a key press
             webView.requestFocus()
             val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
             dispatchKeyEvent(event)
-        }
-        else {
+        } else {
             val safePreviousImage = previousImage
             if (safePreviousImage != null) {
                 stopImageTimer()
@@ -659,14 +672,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun nextAction(){
+    private fun nextAction() {
         if (useWebView) {
             // Simulate a key press
             webView.requestFocus()
             val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
             dispatchKeyEvent(event)
-        }
-        else {
+        } else {
             stopImageTimer()
             getNextImage()
             startImageTimer()
@@ -727,7 +739,7 @@ class MainActivity : AppCompatActivity() {
                         return true
                     }
 
-                    KeyEvent.KEYCODE_SPACE ->{
+                    KeyEvent.KEYCODE_SPACE -> {
                         pauseAction()
                         return true
                     }
@@ -770,10 +782,9 @@ class MainActivity : AppCompatActivity() {
                 dimOverlay.apply {
                     visibility = View.VISIBLE
                     alpha = 0f
-                    if(useWebView){
+                    if (useWebView) {
                         webView.loadUrl("about:blank")
-                    }
-                    else {
+                    } else {
                         stopImageTimer()
                         stopWeatherTimer()
                     }
