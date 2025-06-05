@@ -46,8 +46,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.*
-import okhttp3.OkHttpClient
-import okhttp3.Request
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -552,30 +552,26 @@ class MainActivity : AppCompatActivity() {
                     view: WebView,
                     request: WebResourceRequest
                 ): WebResourceResponse? {
-                    val url = request.url.toString()
-                    if (!url.startsWith("http")) {
-                        return super.shouldInterceptRequest(view, request)
-                    }
+                    val urlString = request.url.toString()
+                    if (!urlString.contains("/api/")) return super.shouldInterceptRequest(view, request)
 
                     return try {
-                        val client = OkHttpClient()
-                        val newRequest = Request.Builder().url(url).apply {
-                            for ((key, value) in headers) {
-                                addHeader(key, value)
-                            }
-                        }.build()
+                        val url = URL(urlString)
+                        val connection = url.openConnection() as HttpURLConnection
 
-                        val response = client.newCall(newRequest).execute()
-                        val contentType = response.header("Content-Type", "text/html")
-                        val encoding = response.header("Content-Encoding", "utf-8")
+                        for ((key, value) in headers) {
+                            connection.setRequestProperty(key, value)
+                        }
+                        connection.connect()
 
                         WebResourceResponse(
-                            contentType,
-                            encoding,
-                            response.body()?.byteStream()
+                            connection.contentType ?: "application/json",
+                            connection.contentEncoding ?: "utf-8",
+                            connection.inputStream
                         )
                     } catch (e: Exception) {
-                        null // fallback to default handling
+                        Log.e("WebView", "Error intercepting: $urlString", e)
+                        null
                     }
                 }
 
@@ -589,11 +585,22 @@ class MainActivity : AppCompatActivity() {
                         view?.reload()
                     }, 3000)
                 }
+                override fun onReceivedHttpError(
+                    view: WebView,
+                    request: WebResourceRequest,
+                    errorResponse: WebResourceResponse
+                ) {
+                    if (errorResponse.statusCode == 401) {
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            webView.loadUrl(savedUrl)
+                        }, 3000)
+                    }
+                }
             }
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl, headers)
+            webView.loadUrl(savedUrl)
         } else {
             retrofit = Helpers.createRetrofit(savedUrl, headers)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
