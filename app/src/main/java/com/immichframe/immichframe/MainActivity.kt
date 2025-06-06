@@ -163,8 +163,6 @@ class MainActivity : AppCompatActivity() {
         //wait for network connection
         lifecycleScope.launch {
             if (!Helpers.isNetworkAvailable(this@MainActivity)) {
-                Toast.makeText(this@MainActivity, "Waiting for network...", Toast.LENGTH_SHORT)
-                    .show()
                 Helpers.waitForNetwork(this@MainActivity)
                 Toast.makeText(this@MainActivity, "Connected!", Toast.LENGTH_SHORT).show()
             }
@@ -177,7 +175,6 @@ class MainActivity : AppCompatActivity() {
                 loadSettings()
             }
         }
-
     }
 
     private fun showImage(imageResponse: Helpers.ImageResponse) {
@@ -443,7 +440,7 @@ class MainActivity : AppCompatActivity() {
         var retryCount = 0
 
         fun attemptFetch() {
-            if(useWebView){
+            if (useWebView) {
                 return
             }
             apiService.getServerSettings().enqueue(object : Callback<Helpers.ServerSettings> {
@@ -468,7 +465,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 private fun handleFailure(t: Throwable) {
-                    if(useWebView){
+                    if (useWebView) {
                         return
                     }
                     if (retryCount < maxRetries) {
@@ -559,9 +556,19 @@ class MainActivity : AppCompatActivity() {
                     error: WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
+
+                    if (request?.isForMainFrame == true && error != null) {
+                        view?.loadUrl("file:///android_asset/error_page.html")
+
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val errorCode = error.errorCode
+                            val errorDescription = error.description.toString().replace("'", "\\'")
+                            view?.evaluateJavascript("showError('$errorCode', '$errorDescription')", null)
+                        }, 500)
+                    }
                     Handler(Looper.getMainLooper()).postDelayed({
-                        view?.reload()
-                    }, 3000)
+                        webView.loadUrl(savedUrl)
+                    }, 5000)
                 }
             }
             webView.settings.javaScriptEnabled = true

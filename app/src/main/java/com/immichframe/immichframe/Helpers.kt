@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.Base64
+import android.widget.Toast
 import retrofit2.Call
 import retrofit2.http.GET
 import androidx.core.graphics.scale
@@ -206,7 +207,9 @@ object Helpers {
 
     suspend fun waitForNetwork(context: Context) {
         while (!isNetworkAvailable(context)) {
-            delay(1000)
+            Toast.makeText(context, "Waiting for network...", Toast.LENGTH_SHORT)
+                .show()
+            delay(3000)
         }
     }
 }
