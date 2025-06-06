@@ -2,7 +2,9 @@ package com.immichframe.immichframe
 
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import android.text.InputType
 import android.widget.Toast
 import androidx.preference.EditTextPreference
@@ -19,6 +21,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val chkScreenDim = findPreference<SwitchPreferenceCompat>("screenDim")
         val txtDimTime = findPreference<EditTextPreference>("dim_time_range")
 
+
         //obfuscate the authSecret
         val authPref = findPreference<EditTextPreference>("authSecret")
         authPref?.setOnBindEditTextListener { editText ->
@@ -29,7 +32,6 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val useWebView = chkUseWebView?.isChecked ?: false
         chkBlurredBackground?.isVisible = !useWebView
         chkShowCurrentDate?.isVisible = !useWebView
-        //add android settings button
         val screenDim = chkScreenDim?.isChecked ?: false
         txtDimTime?.isVisible = screenDim
 
@@ -47,10 +49,16 @@ class SettingsFragment : PreferenceFragmentCompat() {
             true
         }
 
-        val closeButton = findPreference<Preference>("closeSettings")
-        closeButton?.setOnPreferenceClickListener {
+        val btnClose = findPreference<Preference>("closeSettings")
+        btnClose?.setOnPreferenceClickListener {
             activity?.setResult(Activity.RESULT_OK)
             activity?.finish()
+            true
+        }
+        val btnAndroidSettings = findPreference<Preference>("androidSettings")
+        btnAndroidSettings?.setOnPreferenceClickListener {
+            val intent = Intent(Settings.ACTION_SETTINGS)
+            startActivity(intent)
             true
         }
 

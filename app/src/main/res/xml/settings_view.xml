@@ -8,7 +8,7 @@
             android:inputType="textUri" />
         <EditTextPreference
             android:key="authSecret"
-            android:title="AuthSecret"
+            android:title="Authorization Secret"
             android:defaultValue="" />
     </PreferenceCategory>
 
@@ -42,6 +42,13 @@
             android:summary="e.g., 22:00-07:00"
             android:defaultValue=""
             android:dependency="screenDim" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Android Settings">
+        <Preference
+            android:key="androidSettings"
+            android:title="Launch Android Settings"
+            android:defaultValue=""/>
     </PreferenceCategory>
 
     <Preference
