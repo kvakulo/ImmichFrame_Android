@@ -3,14 +3,49 @@ package com.immichframe.immichframe
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
+import android.text.InputType
 import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreferenceCompat
 
 class SettingsFragment : PreferenceFragmentCompat() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         setPreferencesFromResource(R.xml.settings_view, rootKey)
+        val chkUseWebView = findPreference<SwitchPreferenceCompat>("useWebView")
+        val chkBlurredBackground = findPreference<SwitchPreferenceCompat>("blurredBackground")
+        val chkShowCurrentDate = findPreference<SwitchPreferenceCompat>("showCurrentDate")
+        val chkScreenDim = findPreference<SwitchPreferenceCompat>("screenDim")
+        val txtDimTime = findPreference<EditTextPreference>("dim_time_range")
+
+        //obfuscate the authSecret
+        val authPref = findPreference<EditTextPreference>("authSecret")
+        authPref?.setOnBindEditTextListener { editText ->
+            editText.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+
+        // Update visibility based on switches
+        val useWebView = chkUseWebView?.isChecked ?: false
+        chkBlurredBackground?.isVisible = !useWebView
+        chkShowCurrentDate?.isVisible = !useWebView
+        //add android settings button
+        val screenDim = chkScreenDim?.isChecked ?: false
+        txtDimTime?.isVisible = screenDim
+
+        // React to changes
+        chkUseWebView?.setOnPreferenceChangeListener { _, newValue ->
+            val value = newValue as Boolean
+            chkBlurredBackground?.isVisible = !value
+            chkShowCurrentDate?.isVisible = !value
+            //add android settings button
+            true
+        }
+        chkScreenDim?.setOnPreferenceChangeListener { _, newValue ->
+            val value = newValue as Boolean
+            txtDimTime?.isVisible = value
+            true
+        }
 
         val closeButton = findPreference<Preference>("closeSettings")
         closeButton?.setOnPreferenceClickListener {

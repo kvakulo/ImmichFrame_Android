@@ -170,21 +170,22 @@ object Helpers {
         @GET("api/Weather")
         fun getWeather(): Call<Weather>
     }
-    fun createRetrofit(baseUrl: String, customHeaders: Map<String, String> = emptyMap()): Retrofit {
+
+    fun createRetrofit(baseUrl: String, authSecret: String): Retrofit {
         val normalizedBaseUrl = if (!baseUrl.endsWith("/")) "$baseUrl/" else baseUrl
 
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
-                val builder = originalRequest.newBuilder()
 
-                for ((key, value) in customHeaders) {
-                    if (key.isNotBlank() && value.isNotBlank()) {
-                        builder.addHeader(key.trim(), value.trim())
-                    }
+                val request = if (authSecret.isNotEmpty()) {
+                    originalRequest.newBuilder()
+                        .addHeader("Authorization", "Bearer $authSecret")
+                        .build()
+                } else {
+                    originalRequest
                 }
 
-                val request = builder.build()
                 chain.proceed(request)
             }
             .build()
@@ -195,6 +196,7 @@ object Helpers {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
+
     fun isNetworkAvailable(context: Context): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = cm.activeNetwork

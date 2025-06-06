@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -24,7 +25,6 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -46,8 +46,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.*
-import java.net.HttpURLConnection
-import java.net.URL
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -445,6 +443,9 @@ class MainActivity : AppCompatActivity() {
         var retryCount = 0
 
         fun attemptFetch() {
+            if(useWebView){
+                return
+            }
             apiService.getServerSettings().enqueue(object : Callback<Helpers.ServerSettings> {
                 override fun onResponse(
                     call: Call<Helpers.ServerSettings>,
@@ -467,6 +468,9 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 private fun handleFailure(t: Throwable) {
+                    if(useWebView){
+                        return
+                    }
                     if (retryCount < maxRetries) {
                         retryCount++
                         Toast.makeText(
@@ -492,18 +496,11 @@ class MainActivity : AppCompatActivity() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
         blurredBackground = prefs.getBoolean("blurredBackground", true)
         showCurrentDate = prefs.getBoolean("showCurrentDate", true)
-        val savedUrl = prefs.getString("webview_url", "") ?: ""
+        var savedUrl = prefs.getString("webview_url", "") ?: ""
         useWebView = prefs.getBoolean("useWebView", true)
         keepScreenOn = prefs.getBoolean("keepScreenOn", true)
+        val authSecret = prefs.getString("authSecret", "") ?: ""
         val screenDim = prefs.getBoolean("screenDim", false)
-        val headers = mutableMapOf<String, String>()
-        for (i in 1..2) {
-            val name = prefs.getString("header_name_${i}", "")?.trim()
-            val value = prefs.getString("header_value_${i}", "")?.trim()
-            if (!name.isNullOrEmpty() && !value.isNullOrEmpty()) {
-                headers[name] = value
-            }
-        }
 
         webView.visibility = if (useWebView) View.VISIBLE else View.GONE
         imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
@@ -529,7 +526,15 @@ class MainActivity : AppCompatActivity() {
             window.attributes = lp
         }
         if (useWebView) {
-
+            savedUrl = if (authSecret.isNotEmpty()) {
+                Uri.parse(savedUrl)
+                    .buildUpon()
+                    .appendQueryParameter("authsecret", authSecret)
+                    .build()
+                    .toString()
+            } else {
+                savedUrl
+            }
             handler.removeCallbacks(imageRunnable)
             handler.removeCallbacks(weatherRunnable)
 
@@ -548,33 +553,6 @@ class MainActivity : AppCompatActivity() {
                     return false
                 }
 
-                override fun shouldInterceptRequest(
-                    view: WebView,
-                    request: WebResourceRequest
-                ): WebResourceResponse? {
-                    val urlString = request.url.toString()
-                    if (!urlString.contains("/api/")) return super.shouldInterceptRequest(view, request)
-
-                    return try {
-                        val url = URL(urlString)
-                        val connection = url.openConnection() as HttpURLConnection
-
-                        for ((key, value) in headers) {
-                            connection.setRequestProperty(key, value)
-                        }
-                        connection.connect()
-
-                        WebResourceResponse(
-                            connection.contentType ?: "application/json",
-                            connection.contentEncoding ?: "utf-8",
-                            connection.inputStream
-                        )
-                    } catch (e: Exception) {
-                        Log.e("WebView", "Error intercepting: $urlString", e)
-                        null
-                    }
-                }
-
                 override fun onReceivedError(
                     view: WebView?,
                     request: WebResourceRequest?,
@@ -585,24 +563,13 @@ class MainActivity : AppCompatActivity() {
                         view?.reload()
                     }, 3000)
                 }
-                override fun onReceivedHttpError(
-                    view: WebView,
-                    request: WebResourceRequest,
-                    errorResponse: WebResourceResponse
-                ) {
-                    if (errorResponse.statusCode == 401) {
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            webView.loadUrl(savedUrl)
-                        }, 3000)
-                    }
-                }
             }
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
             webView.loadUrl(savedUrl)
         } else {
-            retrofit = Helpers.createRetrofit(savedUrl, headers)
+            retrofit = Helpers.createRetrofit(savedUrl, authSecret)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
             getServerSettings(
                 onSuccess = { settings ->
@@ -618,7 +585,6 @@ class MainActivity : AppCompatActivity() {
                 }
             )
         }
-
     }
 
     private fun onSettingsLoaded() {

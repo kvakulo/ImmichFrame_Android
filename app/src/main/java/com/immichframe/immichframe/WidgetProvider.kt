@@ -75,17 +75,10 @@ class WidgetProvider : AppWidgetProvider() {
 
             try {
                 val savedUrl = prefs.getString("webview_url", "") ?: ""
-                val headers = mutableMapOf<String, String>()
-                for (i in 1..2) {
-                    val name = prefs.getString("header_name_${i}", "")?.trim()
-                    val value = prefs.getString("header_value_${i}", "")?.trim()
-                    if (!name.isNullOrEmpty() && !value.isNullOrEmpty()) {
-                        headers[name] = value
-                    }
-                }
+                val authSecret = prefs.getString("authSecret", "") ?: ""
 
                 if (savedUrl.isNotEmpty()) {
-                    val retrofit = Helpers.createRetrofit(savedUrl, headers)
+                    val retrofit = Helpers.createRetrofit(savedUrl, authSecret)
                     val apiService = retrofit.create(Helpers.ApiService::class.java)
 
                     CoroutineScope(Dispatchers.IO).launch {

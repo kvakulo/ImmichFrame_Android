@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -398,16 +399,9 @@ class ScreenSaverService : DreamService() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
         blurredBackground = prefs.getBoolean("blurredBackground", true)
         showCurrentDate = prefs.getBoolean("showCurrentDate", true)
-        val savedUrl = prefs.getString("webview_url", "") ?: ""
+        var savedUrl = prefs.getString("webview_url", "") ?: ""
         useWebView = prefs.getBoolean("useWebView", true)
-        val headers = mutableMapOf<String, String>()
-        for (i in 1..2) {
-            val name = prefs.getString("header_name_${i}", "")?.trim()
-            val value = prefs.getString("header_value_${i}", "")?.trim()
-            if (!name.isNullOrEmpty() && !value.isNullOrEmpty()) {
-                headers[name] = value
-            }
-        }
+        val authSecret = prefs.getString("authSecret", "") ?: ""
 
         webView.visibility = if (useWebView) View.VISIBLE else View.GONE
         imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
@@ -416,7 +410,15 @@ class ScreenSaverService : DreamService() {
         txtDateTime.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
 
         if (useWebView) {
-
+            savedUrl = if (authSecret.isNotEmpty()) {
+                Uri.parse(savedUrl)
+                    .buildUpon()
+                    .appendQueryParameter("authsecret", authSecret)
+                    .build()
+                    .toString()
+            } else {
+                savedUrl
+            }
             handler.removeCallbacks(imageRunnable)
             handler.removeCallbacks(weatherRunnable)
             webView.webViewClient = object : WebViewClient() {
@@ -448,9 +450,9 @@ class ScreenSaverService : DreamService() {
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl, headers)
+            webView.loadUrl(savedUrl)
         } else {
-            retrofit = Helpers.createRetrofit(savedUrl, headers)
+            retrofit = Helpers.createRetrofit(savedUrl, authSecret)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
             getServerSettings(
                 onSuccess = { settings ->
