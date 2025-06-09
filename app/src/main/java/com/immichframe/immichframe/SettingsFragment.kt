@@ -1,7 +1,6 @@
 package com.immichframe.immichframe
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
@@ -10,6 +9,7 @@ import android.widget.Toast
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.PreferenceManager
 import androidx.preference.SwitchPreferenceCompat
 
 class SettingsFragment : PreferenceFragmentCompat() {
@@ -72,9 +72,9 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 val (startHour, startMinute) = start.split(":").map { it.toInt() }
                 val (endHour, endMinute) = end.split(":").map { it.toInt() }
 
-                // Save parsed time values separately if needed
-                val context = requireContext()
-                context.getSharedPreferences("ImmichFramePrefs", Context.MODE_PRIVATE).edit()
+                // Save parsed time values separately
+                val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
+                sharedPreferences.edit()
                     .putInt("dimStartHour", startHour)
                     .putInt("dimStartMinute", startMinute)
                     .putInt("dimEndHour", endHour)

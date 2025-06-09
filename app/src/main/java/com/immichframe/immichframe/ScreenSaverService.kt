@@ -85,6 +85,7 @@ class ScreenSaverService : DreamService() {
         setContentView(R.layout.screen_saver_view)
         webView = findViewById(R.id.webView)
         webView.setBackgroundColor(Color.BLACK)
+        webView.loadUrl("about:blank")
         imageView1 = findViewById(R.id.imageView1)
         imageView2 = findViewById(R.id.imageView2)
         txtPhotoInfo = findViewById(R.id.txtPhotoInfo)

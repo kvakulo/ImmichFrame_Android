@@ -30,8 +30,8 @@ android {
         applicationId = "com.immichframe.immichframe"
         minSdk = 23
         targetSdk = 35
-        versionCode = 42
-        versionName = "1.0.42.0"
+        versionCode = 43
+        versionName = "1.0.43.0"
     }
 
     buildTypes {
