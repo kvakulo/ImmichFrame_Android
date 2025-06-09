@@ -30,8 +30,8 @@ android {
         applicationId = "com.immichframe.immichframe"
         minSdk = 23
         targetSdk = 35
-        versionCode = 42
-        versionName = "1.0.42.0"
+        versionCode = 43
+        versionName = "1.0.43.0"
     }
 
     buildTypes {
@@ -75,6 +75,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofitgson)
     implementation(libs.nanohttpd)
+    implementation(libs.androidx.preference)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

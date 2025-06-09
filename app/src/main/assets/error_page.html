@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: sans-serif;
+            padding: 20px;
+            text-align: center;
+        }
+        h2 {
+            color: #ff5555;
+        }
+        .error-details {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #bbbbbb;
+        }
+    </style>
+</head>
+<body>
+    <h2>Oops! Something went wrong.</h2>
+    <p>Unable to load the page. Please check your connection.</p>
+    <p>Retrying in 5 seconds...</p>
+    <div class="error-details" id="error-details">
+        <!-- Error info will be injected by JavaScript -->
+    </div>
+    <script>
+        function showError(code, description) {
+            document.getElementById("error-details").innerHTML =
+                "<p><strong>Error code:</strong> " + code + "</p>" +
+                "<p><strong>Description:</strong> " + description + "</p>";
+        }
+    </script>
+</body>
+</html>

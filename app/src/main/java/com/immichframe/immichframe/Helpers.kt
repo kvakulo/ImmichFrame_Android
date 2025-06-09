@@ -5,10 +5,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Base64
+import android.widget.Toast
 import retrofit2.Call
 import retrofit2.http.GET
 import androidx.core.graphics.scale
+import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -167,6 +171,7 @@ object Helpers {
         @GET("api/Weather")
         fun getWeather(): Call<Weather>
     }
+
     fun createRetrofit(baseUrl: String, authSecret: String): Retrofit {
         val normalizedBaseUrl = if (!baseUrl.endsWith("/")) "$baseUrl/" else baseUrl
 
@@ -193,4 +198,18 @@ object Helpers {
             .build()
     }
 
+    fun isNetworkAvailable(context: Context): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork
+        val capabilities = cm.getNetworkCapabilities(network)
+        return capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+
+    suspend fun waitForNetwork(context: Context) {
+        while (!isNetworkAvailable(context)) {
+            Toast.makeText(context, "Waiting for network...", Toast.LENGTH_SHORT)
+                .show()
+            delay(3000)
+        }
+    }
 }

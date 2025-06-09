@@ -34,7 +34,10 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.preference.PreferenceManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import retrofit2.Call
 import retrofit2.Callback
@@ -103,6 +106,8 @@ class MainActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        //force dark mode
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -110,7 +115,8 @@ class MainActivity : AppCompatActivity() {
         hideSystemUI()
 
         webView = findViewById(R.id.webView)
-        //webView.setBackgroundColor(Color.TRANSPARENT)
+        webView.setBackgroundColor(Color.BLACK)
+        webView.loadUrl("about:blank")
         imageView1 = findViewById(R.id.imageView1)
         imageView2 = findViewById(R.id.imageView2)
         txtPhotoInfo = findViewById(R.id.txtPhotoInfo)
@@ -125,6 +131,7 @@ class MainActivity : AppCompatActivity() {
             swipeRefreshLayout.isRefreshing = false
             settingsAction()
         }
+
         btnPrevious.setOnClickListener {
             val toast = Toast.makeText(this, "Previous", Toast.LENGTH_SHORT)
             toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.START, 0, 0)
@@ -148,21 +155,28 @@ class MainActivity : AppCompatActivity() {
 
         rcpServer = RpcHttpServer(
             onDimCommand = { dim -> runOnUiThread { screenDim(dim) } },
-            onNextCommand = { runOnUiThread {nextAction()} },
-            onPreviousCommand = { runOnUiThread {previousAction()} },
-            onPauseCommand = { runOnUiThread {pauseAction()} },
-            onSettingsCommand = { runOnUiThread {settingsAction()} },
-            onBrightnessCommand = { brightness -> runOnUiThread { screenBrightnessAction(brightness) }},
+            onNextCommand = { runOnUiThread { nextAction() } },
+            onPreviousCommand = { runOnUiThread { previousAction() } },
+            onPauseCommand = { runOnUiThread { pauseAction() } },
+            onSettingsCommand = { runOnUiThread { settingsAction() } },
+            onBrightnessCommand = { brightness -> runOnUiThread { screenBrightnessAction(brightness) } },
         )
         rcpServer.start()
 
-        val savedUrl = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE).getString("webview_url", "") ?: ""
-        if (savedUrl.isBlank()) {
-            val intent = Intent(this, SettingsActivity::class.java)
-            settingsLauncher.launch(intent)
-        }
-        else {
-            loadSettings()
+        //wait for network connection
+        lifecycleScope.launch {
+            if (!Helpers.isNetworkAvailable(this@MainActivity)) {
+                Helpers.waitForNetwork(this@MainActivity)
+                Toast.makeText(this@MainActivity, "Connected!", Toast.LENGTH_SHORT).show()
+            }
+            val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+            val savedUrl = prefs.getString("webview_url", "") ?: ""
+            if (savedUrl.isBlank()) {
+                val intent = Intent(this@MainActivity, SettingsActivity::class.java)
+                settingsLauncher.launch(intent)
+            } else {
+                loadSettings()
+            }
         }
     }
 
@@ -429,6 +443,9 @@ class MainActivity : AppCompatActivity() {
         var retryCount = 0
 
         fun attemptFetch() {
+            if (useWebView) {
+                return
+            }
             apiService.getServerSettings().enqueue(object : Callback<Helpers.ServerSettings> {
                 override fun onResponse(
                     call: Call<Helpers.ServerSettings>,
@@ -451,6 +468,9 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 private fun handleFailure(t: Throwable) {
+                    if (useWebView) {
+                        return
+                    }
                     if (retryCount < maxRetries) {
                         retryCount++
                         Toast.makeText(
@@ -473,14 +493,14 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun loadSettings() {
-        val sharedPreferences = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE)
-        blurredBackground = sharedPreferences.getBoolean("blurredBackground", true)
-        showCurrentDate = sharedPreferences.getBoolean("showCurrentDate", true)
-        var savedUrl = sharedPreferences.getString("webview_url", "") ?: ""
-        useWebView = sharedPreferences.getBoolean("useWebView", true)
-        keepScreenOn = sharedPreferences.getBoolean("keepScreenOn", true)
-        val authSecret = sharedPreferences.getString("authSecret", "") ?: ""
-        val screenDim = sharedPreferences.getBoolean("screenDim", false)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        blurredBackground = prefs.getBoolean("blurredBackground", true)
+        showCurrentDate = prefs.getBoolean("showCurrentDate", true)
+        var savedUrl = prefs.getString("webview_url", "") ?: ""
+        useWebView = prefs.getBoolean("useWebView", true)
+        keepScreenOn = prefs.getBoolean("keepScreenOn", true)
+        val authSecret = prefs.getString("authSecret", "") ?: ""
+        val screenDim = prefs.getBoolean("screenDim", false)
 
         webView.visibility = if (useWebView) View.VISIBLE else View.GONE
         imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
@@ -515,8 +535,6 @@ class MainActivity : AppCompatActivity() {
             } else {
                 savedUrl
             }
-
-            //handler.removeCallbacksAndMessages(null)
             handler.removeCallbacks(imageRunnable)
             handler.removeCallbacks(weatherRunnable)
 
@@ -541,9 +559,19 @@ class MainActivity : AppCompatActivity() {
                     error: WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
+
+                    if (request?.isForMainFrame == true && error != null) {
+                        view?.loadUrl("file:///android_asset/error_page.html")
+
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val errorCode = error.errorCode
+                            val errorDescription = error.description.toString().replace("'", "\\'")
+                            view?.evaluateJavascript("showError('$errorCode', '$errorDescription')", null)
+                        }, 500)
+                    }
                     Handler(Looper.getMainLooper()).postDelayed({
-                        view?.reload()
-                    }, 3000)
+                        webView.loadUrl(savedUrl)
+                    }, 5000)
                 }
             }
             webView.settings.javaScriptEnabled = true
@@ -567,15 +595,13 @@ class MainActivity : AppCompatActivity() {
                 }
             )
         }
-
     }
 
     private fun onSettingsLoaded() {
-        if (serverSettings.imageFill){
+        if (serverSettings.imageFill) {
             imageView1.scaleType = ImageView.ScaleType.CENTER_CROP
             imageView2.scaleType = ImageView.ScaleType.CENTER_CROP
-        }
-        else{
+        } else {
             imageView1.scaleType = ImageView.ScaleType.FIT_CENTER
             imageView2.scaleType = ImageView.ScaleType.FIT_CENTER
         }
@@ -613,14 +639,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun previousAction(){
+    private fun previousAction() {
         if (useWebView) {
             // Simulate a key press
             webView.requestFocus()
             val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
             dispatchKeyEvent(event)
-        }
-        else {
+        } else {
             val safePreviousImage = previousImage
             if (safePreviousImage != null) {
                 stopImageTimer()
@@ -630,14 +655,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun nextAction(){
+    private fun nextAction() {
         if (useWebView) {
             // Simulate a key press
             webView.requestFocus()
             val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
             dispatchKeyEvent(event)
-        }
-        else {
+        } else {
             stopImageTimer()
             getNextImage()
             startImageTimer()
@@ -698,7 +722,7 @@ class MainActivity : AppCompatActivity() {
                         return true
                     }
 
-                    KeyEvent.KEYCODE_SPACE ->{
+                    KeyEvent.KEYCODE_SPACE -> {
                         pauseAction()
                         return true
                     }
@@ -741,10 +765,9 @@ class MainActivity : AppCompatActivity() {
                 dimOverlay.apply {
                     visibility = View.VISIBLE
                     alpha = 0f
-                    if(useWebView){
+                    if (useWebView) {
                         webView.loadUrl("about:blank")
-                    }
-                    else {
+                    } else {
                         stopImageTimer()
                         stopWeatherTimer()
                     }
@@ -771,7 +794,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkDimTime() {
-        val prefs = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
         val startHour = prefs.getInt("dimStartHour", 22)
         val startMinute = prefs.getInt("dimStartMinute", 0)
         val endHour = prefs.getInt("dimEndHour", 6)
