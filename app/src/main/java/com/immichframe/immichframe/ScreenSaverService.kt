@@ -443,9 +443,19 @@ class ScreenSaverService : DreamService() {
                     error: WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
+
+                    if (request?.isForMainFrame == true && error != null) {
+                        view?.loadUrl("file:///android_asset/error_page.html")
+
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val errorCode = error.errorCode
+                            val errorDescription = error.description.toString().replace("'", "\\'")
+                            view?.evaluateJavascript("showError('$errorCode', '$errorDescription')", null)
+                        }, 500)
+                    }
                     Handler(Looper.getMainLooper()).postDelayed({
-                        view?.reload()
-                    }, 3000)
+                        webView.loadUrl(savedUrl)
+                    }, 5000)
                 }
             }
             webView.settings.javaScriptEnabled = true
