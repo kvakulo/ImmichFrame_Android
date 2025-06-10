@@ -2,7 +2,7 @@
 
     <PreferenceCategory android:title="Connection Settings">
         <EditTextPreference
-            android:defaultValue="http://192.168.0.100:8080"
+            android:defaultValue=""
             android:inputType="textUri"
             android:key="webview_url"
             android:title="ImmichFrame Server URL" />

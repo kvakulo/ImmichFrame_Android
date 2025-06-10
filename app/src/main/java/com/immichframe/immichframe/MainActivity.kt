@@ -570,7 +570,11 @@ class MainActivity : AppCompatActivity() {
                         }, 500)
                     }
                     Handler(Looper.getMainLooper()).postDelayed({
-                        webView.loadUrl(savedUrl)
+                        //check url again in case the user has changed it
+                        val currentUrl = prefs.getString("webview_url", "")?.trim() ?: ""
+                        if (currentUrl.isNotEmpty()) {
+                            webView.loadUrl(currentUrl)
+                        }
                     }, 5000)
                 }
             }

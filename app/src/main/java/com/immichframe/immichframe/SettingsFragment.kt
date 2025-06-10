@@ -51,10 +51,19 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         val btnClose = findPreference<Preference>("closeSettings")
         btnClose?.setOnPreferenceClickListener {
-            activity?.setResult(Activity.RESULT_OK)
-            activity?.finish()
-            true
+            val url = PreferenceManager.getDefaultSharedPreferences(requireContext())
+                .getString("webview_url", "")?.trim()
+            val urlPattern = Regex("^https?://.+")
+            return@setOnPreferenceClickListener if (url.isNullOrEmpty()|| !url.matches(urlPattern)) {
+                Toast.makeText(requireContext(), "Please enter a valid server URL.", Toast.LENGTH_LONG).show()
+                false
+            } else {
+                activity?.setResult(Activity.RESULT_OK)
+                activity?.finish()
+                true
+            }
         }
+
         val btnAndroidSettings = findPreference<Preference>("androidSettings")
         btnAndroidSettings?.setOnPreferenceClickListener {
             val intent = Intent(Settings.ACTION_SETTINGS)
