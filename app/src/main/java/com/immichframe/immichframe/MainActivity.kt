@@ -36,7 +36,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import retrofit2.Call
@@ -163,20 +162,14 @@ class MainActivity : AppCompatActivity() {
         )
         rcpServer.start()
 
-        //wait for network connection
-        lifecycleScope.launch {
-            if (!Helpers.isNetworkAvailable(this@MainActivity)) {
-                Helpers.waitForNetwork(this@MainActivity)
-                Toast.makeText(this@MainActivity, "Connected!", Toast.LENGTH_SHORT).show()
-            }
-            val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
-            val savedUrl = prefs.getString("webview_url", "") ?: ""
-            if (savedUrl.isBlank()) {
-                val intent = Intent(this@MainActivity, SettingsActivity::class.java)
-                settingsLauncher.launch(intent)
-            } else {
-                loadSettings()
-            }
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        val savedUrl = prefs.getString("webview_url", "") ?: ""
+
+        if (savedUrl.isBlank()) {
+            val intent = Intent(this@MainActivity, SettingsActivity::class.java)
+            settingsLauncher.launch(intent)
+        } else {
+            loadSettings()
         }
     }
 
