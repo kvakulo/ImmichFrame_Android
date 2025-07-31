@@ -1,1 +1,20 @@
-# ImmichFrame_Android
+<div align="center">
+  <a href="https://github.com/immichFrame/ImmichFrame_Android">
+    <img src="app/src/main/res/drawable/play_store.png" alt="Logo" width="200" height="200">
+  </a>
+
+  <h3 align="center">ImmichFrame Android</h3>
+
+  <p align="center">
+    Android client for <a href="https://github.com/immichFrame/ImmichFrame">ImmichFrame</a>.
+    <br />
+    <br />
+    <a href="https://immichframe.online/docs/getting-started/apps#desktop-windows-macos-linux">Documentation</a>
+  <p>
+</div>
+
+## 📄 Documentation
+You can find the documentation [here](https://immichframe.online/docs/getting-started/apps#desktop-windows-macos-linux).
+
+# Development
+- [Android Studio](https://developer.android.com/studio/)) 
