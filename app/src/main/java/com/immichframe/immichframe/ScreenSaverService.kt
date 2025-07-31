@@ -17,6 +17,7 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -78,10 +79,12 @@ class ScreenSaverService : DreamService() {
     private var isShowingFirst = true
     private var zoomAnimator: ObjectAnimator? = null
 
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onDreamingStarted() {
-        super.onAttachedToWindow()
+        super.onDreamingStarted()
         isFullscreen = true
-        isInteractive = false
+        isInteractive = true
         setContentView(R.layout.screen_saver_view)
         webView = findViewById(R.id.webView)
         webView.setBackgroundColor(Color.BLACK)
@@ -90,6 +93,11 @@ class ScreenSaverService : DreamService() {
         imageView2 = findViewById(R.id.imageView2)
         txtPhotoInfo = findViewById(R.id.txtPhotoInfo)
         txtDateTime = findViewById(R.id.txtDateTime)
+
+        webView.setOnTouchListener { _, _ ->
+            finish()
+            true
+        }
 
         acquireWakeLock()
         loadSettings()
@@ -100,6 +108,55 @@ class ScreenSaverService : DreamService() {
         stopImageTimer()
         releaseWakeLock()
         handler.removeCallbacksAndMessages(null)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    previousAction()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    nextAction()
+                    return true
+                }
+                else -> {
+                    finish()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun previousAction() {
+        if (useWebView) {
+            // Simulate a key press
+            webView.requestFocus()
+            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
+            webView.dispatchKeyEvent(event)
+        } else {
+            val safePreviousImage = previousImage
+            if (safePreviousImage != null) {
+                stopImageTimer()
+                showImage(safePreviousImage)
+                startImageTimer()
+            }
+        }
+    }
+
+    private fun nextAction() {
+        if (useWebView) {
+            // Simulate a key press
+            webView.requestFocus()
+            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
+            webView.dispatchKeyEvent(event)
+        } else {
+            stopImageTimer()
+            getNextImage()
+            startImageTimer()
+        }
     }
 
     private fun showImage(imageResponse: Helpers.ImageResponse) {
