@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/immichFrame/ImmichFrame_Android">
-    <img src="app/src/main/res/drawable/play_store.png" alt="Logo" width="200" height="200">
+    <img src="https://github.com/immichFrame/ImmichFrame_Desktop/src-tauri/icons/icon.png" alt="Logo" width="200" height="200">
   </a>
 
   <h3 align="center">ImmichFrame Android</h3>
