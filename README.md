@@ -17,4 +17,4 @@
 You can find the documentation [here](https://immichframe.online/docs/getting-started/apps#desktop-windows-macos-linux).
 
 # Development
-- [Android Studio](https://developer.android.com/studio/)) 
+- [Android Studio](https://developer.android.com/studio/) 
