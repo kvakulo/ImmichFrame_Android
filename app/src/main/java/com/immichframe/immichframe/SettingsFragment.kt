@@ -2,7 +2,10 @@ package com.immichframe.immichframe
 
 import android.app.Activity
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
 import android.widget.Toast
@@ -66,10 +69,27 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
         val btnAndroidSettings = findPreference<Preference>("androidSettings")
         btnAndroidSettings?.setOnPreferenceClickListener {
+            val context = requireContext()
+
+            // Only show Toast + auto-return on Android 9 and below
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                Toast.makeText(context, "Returning to app in 2 minutes…", Toast.LENGTH_LONG).show()
+
+                // Schedule return after 2 minutes
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val returnIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                    returnIntent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    context.startActivity(returnIntent)
+                }, 2 * 60 * 1000)
+            }
+
+            // Launch Android settings
             val intent = Intent(Settings.ACTION_SETTINGS)
             startActivity(intent)
+
             true
         }
+
 
         val timePref = findPreference<EditTextPreference>("dim_time_range")
         timePref?.setOnPreferenceChangeListener { _, newValue ->
