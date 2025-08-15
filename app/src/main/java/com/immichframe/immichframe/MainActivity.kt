@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnPause: Button
     private lateinit var btnNext: Button
     private lateinit var dimOverlay: View
+    private lateinit var swipeRefreshLayout: View
     private lateinit var serverSettings: Helpers.ServerSettings
     private var retrofit: Retrofit? = null
     private lateinit var apiService: Helpers.ApiService
@@ -124,6 +125,7 @@ class MainActivity : AppCompatActivity() {
         btnPause = findViewById(R.id.btnPause)
         btnNext = findViewById(R.id.btnNext)
         dimOverlay = findViewById(R.id.dimOverlay)
+        swipeRefreshLayout = findViewById(R.id.swipeRefreshLayout)
 
         val swipeRefreshLayout = findViewById<SwipeRefreshLayout>(R.id.swipeRefreshLayout)
         swipeRefreshLayout.setOnRefreshListener {
@@ -494,6 +496,7 @@ class MainActivity : AppCompatActivity() {
         keepScreenOn = prefs.getBoolean("keepScreenOn", true)
         val authSecret = prefs.getString("authSecret", "") ?: ""
         val screenDim = prefs.getBoolean("screenDim", false)
+        val settingsLock = prefs.getBoolean("settingsLock", false)
 
         webView.visibility = if (useWebView) View.VISIBLE else View.GONE
         imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
@@ -501,6 +504,7 @@ class MainActivity : AppCompatActivity() {
         btnPrevious.visibility = if (useWebView) View.GONE else View.VISIBLE
         btnPause.visibility = if (useWebView) View.GONE else View.VISIBLE
         btnNext.visibility = if (useWebView) View.GONE else View.VISIBLE
+        swipeRefreshLayout.isEnabled = !settingsLock
         txtPhotoInfo.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
         txtDateTime.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
         if (keepScreenOn) {

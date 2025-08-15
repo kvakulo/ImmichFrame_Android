@@ -9,6 +9,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.text.InputType
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -51,6 +52,26 @@ class SettingsFragment : PreferenceFragmentCompat() {
             txtDimTime?.isVisible = value
             true
         }
+        val chkSettingsLock = findPreference<SwitchPreferenceCompat>("settingsLock")
+        chkSettingsLock?.setOnPreferenceChangeListener { _, newValue ->
+            val enabling = newValue as Boolean
+            if (enabling) {
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Confirm Action")
+                    .setMessage(
+                        "This will disable access to the settings screen, the only way back is via RPC commands (or uninstall/reinstall).\n" +
+                                "Are you absolutely sure?"
+                    )
+                    .setPositiveButton("Yes", null) // Proceed
+                    .setNegativeButton("No") { dialog, _ ->
+                        chkSettingsLock.isChecked = false // revert
+                        dialog.dismiss()
+                    }
+                    .show()
+            }
+            true
+        }
+
 
         val btnClose = findPreference<Preference>("closeSettings")
         btnClose?.setOnPreferenceClickListener {

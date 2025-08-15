@@ -29,6 +29,10 @@
             android:defaultValue="false"
             android:key="showCurrentDate"
             android:title="Show Current Date?" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="settingsLock"
+            android:title="Lock access to these settings?" />
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Screen Dimming">
