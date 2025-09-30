@@ -3,12 +3,9 @@ package com.immichframe.immichframe
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.drawable.BitmapDrawable
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -39,6 +36,9 @@ import retrofit2.Retrofit
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import androidx.core.graphics.toColorInt
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
 
 class ScreenSaverService : DreamService() {
     private var wakeLock: PowerManager.WakeLock? = null
@@ -182,7 +182,7 @@ class ScreenSaverService : DreamService() {
 
                     val colorString =
                         serverSettings.primaryColor?.takeIf { it.isNotBlank() } ?: "#FFFFFF"
-                    val parsedColor = Color.parseColor(colorString)
+                    val parsedColor = colorString.toColorInt()
 
                     randomBitmap =
                         Helpers.mergeImages(decodedPortraitImageBitmap, randomBitmap, parsedColor)
@@ -221,7 +221,7 @@ class ScreenSaverService : DreamService() {
         imageViewNew.visibility = View.VISIBLE
 
         if (blurredBackground) {
-            imageViewNew.background = BitmapDrawable(resources, thumbHashBitmap)
+            imageViewNew.background = thumbHashBitmap.toDrawable(resources)
         } else {
             imageViewNew.background = null
         }
@@ -294,7 +294,7 @@ class ScreenSaverService : DreamService() {
                 SimpleDateFormat(serverSettings.photoDateFormat, Locale.getDefault()).format(
                     currentDateTime
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 ""
             }
 
@@ -302,7 +302,7 @@ class ScreenSaverService : DreamService() {
                 SimpleDateFormat(serverSettings.clockFormat, Locale.getDefault()).format(
                     currentDateTime
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 ""
             }
 
@@ -469,7 +469,7 @@ class ScreenSaverService : DreamService() {
 
         if (useWebView) {
             savedUrl = if (authSecret.isNotEmpty()) {
-                Uri.parse(savedUrl)
+                savedUrl.toUri()
                     .buildUpon()
                     .appendQueryParameter("authsecret", authSecret)
                     .build()
@@ -553,7 +553,8 @@ class ScreenSaverService : DreamService() {
                 Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
             if (serverSettings.primaryColor != null) {
                 txtPhotoInfo.setTextColor(
-                    runCatching { Color.parseColor(serverSettings.primaryColor) }.getOrDefault(Color.WHITE)
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
                 )
             } else {
                 txtPhotoInfo.setTextColor(Color.WHITE)
@@ -566,7 +567,8 @@ class ScreenSaverService : DreamService() {
             txtDateTime.textSize = Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
             if (serverSettings.primaryColor != null) {
                 txtDateTime.setTextColor(
-                    runCatching { Color.parseColor(serverSettings.primaryColor) }.getOrDefault(Color.WHITE)
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
                 )
             } else {
                 txtDateTime.setTextColor(Color.WHITE)
@@ -595,7 +597,7 @@ class ScreenSaverService : DreamService() {
 
     private fun acquireWakeLock() {
         if (wakeLock == null) {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
             wakeLock = powerManager.newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK, "ImmichFrame::ScreenSaverWakeLock"
             )

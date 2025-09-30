@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 import java.io.FileInputStream
 plugins {
@@ -24,12 +25,12 @@ android {
         }
     }
     namespace = "com.immichframe.immichframe"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.immichframe.immichframe"
         minSdk = 23
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 46
         versionName = "1.0.46.0"
     }
@@ -48,8 +49,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
     buildFeatures {
         compose = true

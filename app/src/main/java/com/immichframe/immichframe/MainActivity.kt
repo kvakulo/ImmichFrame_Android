@@ -3,12 +3,9 @@ package com.immichframe.immichframe
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.drawable.BitmapDrawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -46,6 +43,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.*
+import androidx.core.graphics.toColorInt
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
+import androidx.core.view.isVisible
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -100,7 +101,7 @@ class MainActivity : AppCompatActivity() {
 
     private val settingsLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
+            if (result.resultCode == RESULT_OK) {
                 loadSettings()
             }
         }
@@ -198,7 +199,7 @@ class MainActivity : AppCompatActivity() {
 
                     val colorString =
                         serverSettings.primaryColor?.takeIf { it.isNotBlank() } ?: "#FFFFFF"
-                    val parsedColor = Color.parseColor(colorString)
+                    val parsedColor = colorString.toColorInt()
 
                     randomBitmap =
                         Helpers.mergeImages(decodedPortraitImageBitmap, randomBitmap, parsedColor)
@@ -237,7 +238,7 @@ class MainActivity : AppCompatActivity() {
         imageViewNew.visibility = View.VISIBLE
 
         if (blurredBackground) {
-            imageViewNew.background = BitmapDrawable(resources, thumbHashBitmap)
+            imageViewNew.background = thumbHashBitmap.toDrawable(resources)
         } else {
             imageViewNew.background = null
         }
@@ -310,7 +311,7 @@ class MainActivity : AppCompatActivity() {
                 SimpleDateFormat(serverSettings.photoDateFormat, Locale.getDefault()).format(
                     currentDateTime
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 ""
             }
 
@@ -318,7 +319,7 @@ class MainActivity : AppCompatActivity() {
                 SimpleDateFormat(serverSettings.clockFormat, Locale.getDefault()).format(
                     currentDateTime
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 ""
             }
 
@@ -524,7 +525,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (useWebView) {
             savedUrl = if (authSecret.isNotEmpty()) {
-                Uri.parse(savedUrl)
+                savedUrl.toUri()
                     .buildUpon()
                     .appendQueryParameter("authsecret", authSecret)
                     .build()
@@ -568,7 +569,16 @@ class MainActivity : AppCompatActivity() {
                     }
                     Handler(Looper.getMainLooper()).postDelayed({
                         //check url again in case the user has changed it
-                        val currentUrl = prefs.getString("webview_url", "")?.trim() ?: ""
+                        var currentUrl = prefs.getString("webview_url", "")?.trim() ?: ""
+                        currentUrl = if (authSecret.isNotEmpty()) {
+                            savedUrl.toUri()
+                                .buildUpon()
+                                .appendQueryParameter("authsecret", authSecret)
+                                .build()
+                                .toString()
+                        } else {
+                            currentUrl
+                        }
                         if (currentUrl.isNotEmpty()) {
                             webView.loadUrl(currentUrl)
                         }
@@ -612,7 +622,8 @@ class MainActivity : AppCompatActivity() {
                 Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
             if (serverSettings.primaryColor != null) {
                 txtPhotoInfo.setTextColor(
-                    runCatching { Color.parseColor(serverSettings.primaryColor) }.getOrDefault(Color.WHITE)
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
                 )
             } else {
                 txtPhotoInfo.setTextColor(Color.WHITE)
@@ -623,7 +634,8 @@ class MainActivity : AppCompatActivity() {
             txtDateTime.textSize = Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
             if (serverSettings.primaryColor != null) {
                 txtDateTime.setTextColor(
-                    runCatching { Color.parseColor(serverSettings.primaryColor) }.getOrDefault(Color.WHITE)
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
                 )
             } else {
                 txtDateTime.setTextColor(Color.WHITE)
@@ -781,7 +793,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
             window.attributes = lp
-            if (dimOverlay.visibility == View.VISIBLE) {
+            if (dimOverlay.isVisible) {
                 dimOverlay.animate()
                     .alpha(0f)
                     .setDuration(500L)
@@ -813,7 +825,7 @@ class MainActivity : AppCompatActivity() {
             // Spans midnight
             nowMinutes >= startMinutes || nowMinutes < endMinutes
         }
-        val isOverlayVisible = dimOverlay.visibility == View.VISIBLE
+        val isOverlayVisible = dimOverlay.isVisible
         if (shouldDim && !isOverlayVisible) {
             screenDim(true)
         } else if (!shouldDim && isOverlayVisible) {
