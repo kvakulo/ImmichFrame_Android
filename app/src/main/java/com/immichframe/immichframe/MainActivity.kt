@@ -588,7 +588,7 @@ class MainActivity : AppCompatActivity() {
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl)
+            loadWebViewWithRetry(savedUrl)
         } else {
             retrofit = Helpers.createRetrofit(savedUrl, authSecret)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
@@ -855,5 +855,35 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         rcpServer.stop()
         handler.removeCallbacksAndMessages(null)
+    }
+
+    private fun loadWebViewWithRetry(url: String, attempt: Int = 1, maxAttempts: Int = 36) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val reachable = Helpers.isServerReachable(url)
+            withContext(Dispatchers.Main) {
+                if (reachable) {
+                    webView.loadUrl(url)
+                } else {
+                    if (attempt <= maxAttempts) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Connecting to server... Attempt $attempt of $maxAttempts",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        handler.postDelayed({
+                            loadWebViewWithRetry(url, attempt + 1, maxAttempts)
+                        }, 5000)
+                    } else {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Could not connect to server after $maxAttempts attempts",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        // Load anyway as a last resort - maybe the server will respond
+                        webView.loadUrl(url)
+                    }
+                }
+            }
+        }
     }
 }
