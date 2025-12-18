@@ -186,15 +186,19 @@ object Helpers {
             .addConverterFactory(GsonConverterFactory.create()).build()
     }
 
+    private val reachabilityClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.SECONDS)
+        .build()
+
     fun isServerReachable(url: String): Boolean {
         return try {
-            val client = OkHttpClient.Builder()
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .readTimeout(5, TimeUnit.SECONDS)
+            val request = Request.Builder()
+                .url(url)
+                .head()
                 .build()
-            val request = Request.Builder().url(url).head().build()
-            client.newCall(request).execute().use { response ->
-                response.isSuccessful || response.code in 300..499
+            reachabilityClient.newCall(request).execute().use {
+                true // any HTTP response = reachable
             }
         } catch (e: Exception) {
             false
