@@ -27,6 +27,9 @@ import android.widget.Toast
 import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Call
@@ -41,6 +44,7 @@ import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 
 class ScreenSaverService : DreamService() {
+    private var webViewRetryScope: CoroutineScope? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private lateinit var webView: WebView
     private lateinit var imageView1: ImageView
@@ -83,6 +87,7 @@ class ScreenSaverService : DreamService() {
     @SuppressLint("ClickableViewAccessibility")
     override fun onDreamingStarted() {
         super.onDreamingStarted()
+        webViewRetryScope = CoroutineScope(Dispatchers.Main + Job())
         isFullscreen = true
         isInteractive = true
         setContentView(R.layout.screen_saver_view)
@@ -105,6 +110,8 @@ class ScreenSaverService : DreamService() {
 
     override fun onDreamingStopped() {
         super.onDreamingStopped()
+        webViewRetryScope?.cancel()
+        webViewRetryScope = null
         stopImageTimer()
         releaseWakeLock()
         handler.removeCallbacksAndMessages(null)
@@ -518,7 +525,7 @@ class ScreenSaverService : DreamService() {
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl)
+            loadWebViewWithRetry(savedUrl)
         } else {
             retrofit = Helpers.createRetrofit(savedUrl, authSecret)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
@@ -612,5 +619,38 @@ class ScreenSaverService : DreamService() {
             }
         }
         wakeLock = null
+    }
+
+    private fun loadWebViewWithRetry(
+        url: String,
+        attempt: Int = 1,
+        maxAttempts: Int = 36
+    ) {
+        webViewRetryScope?.launch {
+            val reachable = withContext(Dispatchers.IO) {
+                Helpers.isServerReachable(url)
+            }
+
+            if (reachable) {
+                webView.loadUrl(url)
+            } else if (attempt <= maxAttempts) {
+                Toast.makeText(
+                    this@ScreenSaverService,
+                    "Connecting to server... Attempt $attempt of $maxAttempts",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                delay(5_000)
+                loadWebViewWithRetry(url, attempt + 1, maxAttempts)
+            } else {
+                Toast.makeText(
+                    this@ScreenSaverService,
+                    "Could not connect to server after $maxAttempts attempts",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                webView.loadUrl(url)
+            }
+        }
     }
 }

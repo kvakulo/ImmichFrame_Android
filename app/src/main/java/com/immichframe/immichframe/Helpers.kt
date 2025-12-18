@@ -10,8 +10,10 @@ import retrofit2.Call
 import retrofit2.http.GET
 import androidx.core.graphics.scale
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 object Helpers {
     fun textSizeMultiplier(context: Context, currentSizeSp: Float, multiplier: Float): Float {
@@ -182,6 +184,25 @@ object Helpers {
 
         return Retrofit.Builder().baseUrl(normalizedBaseUrl).client(client)
             .addConverterFactory(GsonConverterFactory.create()).build()
+    }
+
+    private val reachabilityClient = OkHttpClient.Builder()
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.SECONDS)
+        .build()
+
+    fun isServerReachable(url: String): Boolean {
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .head()
+                .build()
+            reachabilityClient.newCall(request).execute().use {
+                true // any HTTP response = reachable
+            }
+        } catch (e: Exception) {
+            false
+        }
     }
 
 }

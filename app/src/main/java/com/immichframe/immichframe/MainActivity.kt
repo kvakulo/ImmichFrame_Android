@@ -43,6 +43,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.*
+import androidx.lifecycle.lifecycleScope
 import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
@@ -588,7 +589,7 @@ class MainActivity : AppCompatActivity() {
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl)
+            loadWebViewWithRetry(savedUrl)
         } else {
             retrofit = Helpers.createRetrofit(savedUrl, authSecret)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
@@ -855,5 +856,38 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         rcpServer.stop()
         handler.removeCallbacksAndMessages(null)
+    }
+
+    private fun loadWebViewWithRetry(
+        url: String,
+        attempt: Int = 1,
+        maxAttempts: Int = 36
+    ) {
+        lifecycleScope.launch {
+            val reachable = withContext(Dispatchers.IO) {
+                Helpers.isServerReachable(url)
+            }
+
+            if (reachable) {
+                webView.loadUrl(url)
+            } else if (attempt <= maxAttempts) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Connecting to server... Attempt $attempt of $maxAttempts",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                delay(5_000)
+                loadWebViewWithRetry(url, attempt + 1, maxAttempts)
+            } else {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Could not connect to server after $maxAttempts attempts",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                webView.loadUrl(url)
+            }
+        }
     }
 }
