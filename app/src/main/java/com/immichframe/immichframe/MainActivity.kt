@@ -43,6 +43,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import kotlinx.coroutines.*
+import androidx.lifecycle.lifecycleScope
 import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
@@ -857,32 +858,35 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
     }
 
-    private fun loadWebViewWithRetry(url: String, attempt: Int = 1, maxAttempts: Int = 36) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val reachable = Helpers.isServerReachable(url)
-            withContext(Dispatchers.Main) {
-                if (reachable) {
-                    webView.loadUrl(url)
-                } else {
-                    if (attempt <= maxAttempts) {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Connecting to server... Attempt $attempt of $maxAttempts",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        handler.postDelayed({
-                            loadWebViewWithRetry(url, attempt + 1, maxAttempts)
-                        }, 5000)
-                    } else {
-                        Toast.makeText(
-                            this@MainActivity,
-                            "Could not connect to server after $maxAttempts attempts",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        // Load anyway as a last resort - maybe the server will respond
-                        webView.loadUrl(url)
-                    }
-                }
+    private fun loadWebViewWithRetry(
+        url: String,
+        attempt: Int = 1,
+        maxAttempts: Int = 36
+    ) {
+        lifecycleScope.launch {
+            val reachable = withContext(Dispatchers.IO) {
+                Helpers.isServerReachable(url)
+            }
+
+            if (reachable) {
+                webView.loadUrl(url)
+            } else if (attempt <= maxAttempts) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Connecting to server... Attempt $attempt of $maxAttempts",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                delay(5_000)
+                loadWebViewWithRetry(url, attempt + 1, maxAttempts)
+            } else {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Could not connect to server after $maxAttempts attempts",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                webView.loadUrl(url)
             }
         }
     }
