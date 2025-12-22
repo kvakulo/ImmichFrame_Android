@@ -819,13 +819,13 @@ class MainActivity : AppCompatActivity() {
         val startMinutes = startHour * 60 + startMinute
         val endMinutes = endHour * 60 + endMinute
 
-        val shouldDim = if (startMinutes < endMinutes) {
-            // Same day
-            nowMinutes in startMinutes until endMinutes
-        } else {
-            // Spans midnight
-            nowMinutes >= startMinutes || nowMinutes < endMinutes
-        }
+        val shouldDim =
+            if (startMinutes < endMinutes) {
+                nowMinutes in startMinutes until endMinutes
+            } else {
+                nowMinutes !in endMinutes until startMinutes
+            }
+
         val isOverlayVisible = dimOverlay.isVisible
         if (shouldDim && !isOverlayVisible) {
             screenDim(true)
