@@ -1,0 +1,69 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="Connection Settings">
+        <EditTextPreference
+            android:defaultValue=""
+            android:inputType="textUri"
+            android:key="webview_url"
+            android:title="ImmichFrame Server URL" />
+        <EditTextPreference
+            android:defaultValue=""
+            android:key="authSecret"
+            android:title="Authorization Secret" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Display Options">
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="useWebView"
+            android:title="Use WebView?" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="keepScreenOn"
+            android:title="Keep Screen On?" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="blurredBackground"
+            android:title="Blurred Background?" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="showCurrentDate"
+            android:title="Show Current Date?" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="settingsLock"
+            android:title="Lock access to these settings?" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Screen Dimming">
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="screenDim"
+            android:title="Set Screen Dim Hours?" />
+        <EditTextPreference
+            android:defaultValue=""
+            android:dependency="screenDim"
+            android:key="dim_time_range"
+            android:summary="e.g., 22:00-07:00"
+            android:title="Dim Time Range" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Android Settings">
+        <Preference
+            android:defaultValue=""
+            android:key="androidSettings"
+            android:title="Launch Android Settings" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="Interactions">
+        <Preference
+            android:key="interactions"
+            android:selectable="false"
+            android:summary="⬆️ Open Settings\n🆗 Play/Pause\n⬅️ Previous Image\n➡️ Next Image\n👇 Open Settings (swipe)" />
+    </PreferenceCategory>
+
+    <Preference
+        android:icon="@android:drawable/ic_menu_close_clear_cancel"
+        android:key="closeSettings"
+        android:title="Close Settings" />
+</PreferenceScreen>

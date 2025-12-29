@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 import java.io.FileInputStream
 plugins {
@@ -24,14 +25,14 @@ android {
         }
     }
     namespace = "com.immichframe.immichframe"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.immichframe.immichframe"
         minSdk = 23
-        targetSdk = 35
-        versionCode = 40
-        versionName = "1.0.40.0"
+        targetSdk = 36
+        versionCode = 48
+        versionName = "1.0.48.0"
     }
 
     buildTypes {
@@ -48,8 +49,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
     buildFeatures {
         compose = true
@@ -75,6 +78,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofitgson)
     implementation(libs.nanohttpd)
+    implementation(libs.androidx.preference)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
