@@ -791,6 +791,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun turnScreenOff() {
         if (isScreenOn(this)) {
+            pauseAction()
             screenDim(true)
             toggleScreen()
         }
@@ -798,6 +799,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun turnScreenOn() {
         if (!isScreenOn(this)) {
+            pauseAction()
             toggleScreen()
             screenDim(false)
         }
@@ -821,7 +823,7 @@ class MainActivity : AppCompatActivity() {
                     visibility = View.VISIBLE
                     alpha = 0f
                     if (useWebView) {
-                        webView.loadUrl("about:blank")
+                        //webView.loadUrl("about:blank")
                     } else {
                         stopImageTimer()
                         stopWeatherTimer()
@@ -841,7 +843,7 @@ class MainActivity : AppCompatActivity() {
                     .setDuration(500L)
                     .withEndAction {
                         dimOverlay.visibility = View.GONE
-                        loadSettings()
+                        //loadSettings()
                     }
                     .start()
             }
