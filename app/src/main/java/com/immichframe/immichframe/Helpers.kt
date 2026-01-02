@@ -167,28 +167,35 @@ object Helpers {
         fun getWeather(): Call<Weather>
     }
 
-    fun createRetrofit(baseUrl: String, authSecret: String): Retrofit {
+    fun createRetrofit(baseUrl: String, authSecret: String, cfClientId: String, cfClientSecret: String): Retrofit {
         val normalizedBaseUrl = if (!baseUrl.endsWith("/")) "$baseUrl/" else baseUrl
 
         val client = enableModernTls(OkHttpClient.Builder())
             .addInterceptor { chain ->
                 val originalRequest = chain.request()
 
-                val request = if (authSecret.isNotEmpty()) {
-                    originalRequest.newBuilder().addHeader("Authorization", "Bearer $authSecret")
-                        .build()
-                } else {
-                    originalRequest
+                val newRequest = originalRequest.newBuilder();
+
+                if (authSecret.isNotEmpty()) {
+                    newRequest.header("Authorization", "Bearer $authSecret")
                 }
 
-                chain.proceed(request)
+                if(cfClientId.isNotEmpty()) {
+                    newRequest.header("CF-Access-Client-Id", cfClientId)
+                }
+
+                if(cfClientSecret.isNotEmpty()) {
+                    newRequest.header("CF-Access-Client-Secret", cfClientSecret)
+                }
+
+                chain.proceed(newRequest.build())
             }.build()
 
         return Retrofit.Builder().baseUrl(normalizedBaseUrl).client(client)
             .addConverterFactory(GsonConverterFactory.create()).build()
     }
 
-    private val reachabilityClient = enableModernTls(OkHttpClient.Builder())
+    private val reachabilityClient = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .build()

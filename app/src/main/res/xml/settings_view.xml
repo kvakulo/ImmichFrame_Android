@@ -10,11 +10,19 @@
             android:defaultValue=""
             android:key="authSecret"
             android:title="Authorization Secret" />
+        <EditTextPreference
+            android:defaultValue=""
+            android:key="cloudflareClientId"
+            android:title="Cloudflare Client Id" />
+        <EditTextPreference
+            android:defaultValue=""
+            android:key="cloudflareClientSecret"
+            android:title="Cloudflare Client Secret" />
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Display Options">
         <SwitchPreferenceCompat
-            android:defaultValue="true"
+            android:defaultValue="false"
             android:key="useWebView"
             android:title="Use WebView?" />
         <SwitchPreferenceCompat
@@ -22,7 +30,7 @@
             android:key="keepScreenOn"
             android:title="Keep Screen On?" />
         <SwitchPreferenceCompat
-            android:defaultValue="false"
+            android:defaultValue="true"
             android:key="blurredBackground"
             android:title="Blurred Background?" />
         <SwitchPreferenceCompat

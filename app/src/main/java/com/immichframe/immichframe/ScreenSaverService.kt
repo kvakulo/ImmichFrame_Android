@@ -527,7 +527,7 @@ class ScreenSaverService : DreamService() {
             webView.settings.domStorageEnabled = true
             loadWebViewWithRetry(savedUrl)
         } else {
-            retrofit = Helpers.createRetrofit(savedUrl, authSecret)
+            retrofit = Helpers.createRetrofit(savedUrl, authSecret, "", "")
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
             getServerSettings(
                 onSuccess = { settings ->
