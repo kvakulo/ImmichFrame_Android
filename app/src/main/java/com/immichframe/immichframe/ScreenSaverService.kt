@@ -3,12 +3,9 @@ package com.immichframe.immichframe
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.drawable.BitmapDrawable
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -17,6 +14,7 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -26,8 +24,12 @@ import android.webkit.WebViewClient
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Call
@@ -37,8 +39,12 @@ import retrofit2.Retrofit
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+import androidx.core.graphics.toColorInt
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
 
 class ScreenSaverService : DreamService() {
+    private var webViewRetryScope: CoroutineScope? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private lateinit var webView: WebView
     private lateinit var imageView1: ImageView
@@ -66,20 +72,37 @@ class ScreenSaverService : DreamService() {
             }
         }
     }
+    private val weatherRunnable = object : Runnable {
+        override fun run() {
+            if (isWeatherTimerRunning) {
+                handler.postDelayed(this, 600000)
+                getWeather()
+            }
+        }
+    }
     private var isShowingFirst = true
     private var zoomAnimator: ObjectAnimator? = null
 
+
+    @SuppressLint("ClickableViewAccessibility")
     override fun onDreamingStarted() {
-        super.onAttachedToWindow()
+        super.onDreamingStarted()
+        webViewRetryScope = CoroutineScope(Dispatchers.Main + Job())
         isFullscreen = true
-        isInteractive = false
+        isInteractive = true
         setContentView(R.layout.screen_saver_view)
         webView = findViewById(R.id.webView)
         webView.setBackgroundColor(Color.BLACK)
+        webView.loadUrl("about:blank")
         imageView1 = findViewById(R.id.imageView1)
         imageView2 = findViewById(R.id.imageView2)
         txtPhotoInfo = findViewById(R.id.txtPhotoInfo)
         txtDateTime = findViewById(R.id.txtDateTime)
+
+        webView.setOnTouchListener { _, _ ->
+            finish()
+            true
+        }
 
         acquireWakeLock()
         loadSettings()
@@ -87,9 +110,60 @@ class ScreenSaverService : DreamService() {
 
     override fun onDreamingStopped() {
         super.onDreamingStopped()
+        webViewRetryScope?.cancel()
+        webViewRetryScope = null
         stopImageTimer()
         releaseWakeLock()
         handler.removeCallbacksAndMessages(null)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    previousAction()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    nextAction()
+                    return true
+                }
+                else -> {
+                    finish()
+                    return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun previousAction() {
+        if (useWebView) {
+            // Simulate a key press
+            webView.requestFocus()
+            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
+            webView.dispatchKeyEvent(event)
+        } else {
+            val safePreviousImage = previousImage
+            if (safePreviousImage != null) {
+                stopImageTimer()
+                showImage(safePreviousImage)
+                startImageTimer()
+            }
+        }
+    }
+
+    private fun nextAction() {
+        if (useWebView) {
+            // Simulate a key press
+            webView.requestFocus()
+            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
+            webView.dispatchKeyEvent(event)
+        } else {
+            stopImageTimer()
+            getNextImage()
+            startImageTimer()
+        }
     }
 
     private fun showImage(imageResponse: Helpers.ImageResponse) {
@@ -115,7 +189,7 @@ class ScreenSaverService : DreamService() {
 
                     val colorString =
                         serverSettings.primaryColor?.takeIf { it.isNotBlank() } ?: "#FFFFFF"
-                    val parsedColor = Color.parseColor(colorString)
+                    val parsedColor = colorString.toColorInt()
 
                     randomBitmap =
                         Helpers.mergeImages(decodedPortraitImageBitmap, randomBitmap, parsedColor)
@@ -154,7 +228,7 @@ class ScreenSaverService : DreamService() {
         imageViewNew.visibility = View.VISIBLE
 
         if (blurredBackground) {
-            imageViewNew.background = BitmapDrawable(resources, thumbHashBitmap)
+            imageViewNew.background = thumbHashBitmap.toDrawable(resources)
         } else {
             imageViewNew.background = null
         }
@@ -227,7 +301,7 @@ class ScreenSaverService : DreamService() {
                 SimpleDateFormat(serverSettings.photoDateFormat, Locale.getDefault()).format(
                     currentDateTime
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 ""
             }
 
@@ -235,7 +309,7 @@ class ScreenSaverService : DreamService() {
                 SimpleDateFormat(serverSettings.clockFormat, Locale.getDefault()).format(
                     currentDateTime
                 )
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 ""
             }
 
@@ -387,12 +461,12 @@ class ScreenSaverService : DreamService() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun loadSettings() {
-        val sharedPreferences = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE)
-        blurredBackground = sharedPreferences.getBoolean("blurredBackground", true)
-        showCurrentDate = sharedPreferences.getBoolean("showCurrentDate", true)
-        var savedUrl = sharedPreferences.getString("webview_url", "") ?: ""
-        useWebView = sharedPreferences.getBoolean("useWebView", true)
-        val authSecret = sharedPreferences.getString("authSecret", "") ?: ""
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        blurredBackground = prefs.getBoolean("blurredBackground", true)
+        showCurrentDate = prefs.getBoolean("showCurrentDate", true)
+        var savedUrl = prefs.getString("webview_url", "") ?: ""
+        useWebView = prefs.getBoolean("useWebView", true)
+        val authSecret = prefs.getString("authSecret", "") ?: ""
 
         webView.visibility = if (useWebView) View.VISIBLE else View.GONE
         imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
@@ -402,7 +476,7 @@ class ScreenSaverService : DreamService() {
 
         if (useWebView) {
             savedUrl = if (authSecret.isNotEmpty()) {
-                Uri.parse(savedUrl)
+                savedUrl.toUri()
                     .buildUpon()
                     .appendQueryParameter("authsecret", authSecret)
                     .build()
@@ -410,8 +484,8 @@ class ScreenSaverService : DreamService() {
             } else {
                 savedUrl
             }
-
-            handler.removeCallbacksAndMessages(null)
+            handler.removeCallbacks(imageRunnable)
+            handler.removeCallbacks(weatherRunnable)
             webView.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(
                     view: WebView?,
@@ -433,13 +507,25 @@ class ScreenSaverService : DreamService() {
                     error: WebResourceError?
                 ) {
                     super.onReceivedError(view, request, error)
-                    view?.reload()
+
+                    if (request?.isForMainFrame == true && error != null) {
+                        view?.loadUrl("file:///android_asset/error_page.html")
+
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val errorCode = error.errorCode
+                            val errorDescription = error.description.toString().replace("'", "\\'")
+                            view?.evaluateJavascript("showError('$errorCode', '$errorDescription')", null)
+                        }, 500)
+                    }
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        webView.loadUrl(savedUrl)
+                    }, 5000)
                 }
             }
             webView.settings.javaScriptEnabled = true
             webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
             webView.settings.domStorageEnabled = true
-            webView.loadUrl(savedUrl)
+            loadWebViewWithRetry(savedUrl)
         } else {
             retrofit = Helpers.createRetrofit(savedUrl, authSecret)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
@@ -474,7 +560,8 @@ class ScreenSaverService : DreamService() {
                 Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
             if (serverSettings.primaryColor != null) {
                 txtPhotoInfo.setTextColor(
-                    runCatching { Color.parseColor(serverSettings.primaryColor) }.getOrDefault(Color.WHITE)
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
                 )
             } else {
                 txtPhotoInfo.setTextColor(Color.WHITE)
@@ -487,7 +574,8 @@ class ScreenSaverService : DreamService() {
             txtDateTime.textSize = Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
             if (serverSettings.primaryColor != null) {
                 txtDateTime.setTextColor(
-                    runCatching { Color.parseColor(serverSettings.primaryColor) }.getOrDefault(Color.WHITE)
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
                 )
             } else {
                 txtDateTime.setTextColor(Color.WHITE)
@@ -516,7 +604,7 @@ class ScreenSaverService : DreamService() {
 
     private fun acquireWakeLock() {
         if (wakeLock == null) {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
             wakeLock = powerManager.newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK, "ImmichFrame::ScreenSaverWakeLock"
             )
@@ -531,5 +619,38 @@ class ScreenSaverService : DreamService() {
             }
         }
         wakeLock = null
+    }
+
+    private fun loadWebViewWithRetry(
+        url: String,
+        attempt: Int = 1,
+        maxAttempts: Int = 36
+    ) {
+        webViewRetryScope?.launch {
+            val reachable = withContext(Dispatchers.IO) {
+                Helpers.isServerReachable(url)
+            }
+
+            if (reachable) {
+                webView.loadUrl(url)
+            } else if (attempt <= maxAttempts) {
+                Toast.makeText(
+                    this@ScreenSaverService,
+                    "Connecting to server... Attempt $attempt of $maxAttempts",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+                delay(5_000)
+                loadWebViewWithRetry(url, attempt + 1, maxAttempts)
+            } else {
+                Toast.makeText(
+                    this@ScreenSaverService,
+                    "Could not connect to server after $maxAttempts attempts",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                webView.loadUrl(url)
+            }
+        }
     }
 }

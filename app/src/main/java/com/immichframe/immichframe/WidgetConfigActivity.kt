@@ -2,12 +2,12 @@ package com.immichframe.immichframe
 
 import android.appwidget.AppWidgetManager
 import android.content.Intent
-import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.RadioGroup
 import androidx.appcompat.app.AppCompatActivity
+import androidx.preference.PreferenceManager
 
 class WidgetConfigActivity : AppCompatActivity() {
 
@@ -24,7 +24,7 @@ class WidgetConfigActivity : AppCompatActivity() {
             AppWidgetManager.INVALID_APPWIDGET_ID
         )
 
-        val prefs: SharedPreferences = getSharedPreferences("ImmichFramePrefs", MODE_PRIVATE)
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
         val backgroundType = prefs.getString("widgetBackground$appWidgetId", "square")
 
         val selectedRadioButtonId = when (backgroundType) {

@@ -36,7 +36,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="bottom|end"
             android:background="@android:color/transparent"
-            android:gravity="center"
+            android:gravity="end"
             android:padding="8dp"
             android:shadowColor="#99000000"
             android:shadowDx="2"
