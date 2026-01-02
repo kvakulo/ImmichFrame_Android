@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -50,6 +51,8 @@ import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 import androidx.core.view.isVisible
+import androidx.core.view.setPadding
+import com.google.android.material.card.MaterialCardView
 import com.immichframe.immichframe.moderntls.ModernTlsOkHttpClient
 import java.security.Security
 
@@ -57,6 +60,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var imageView1: ImageView
     private lateinit var imageView2: ImageView
+    private lateinit var cardPhotoInfo: MaterialCardView
     private lateinit var txtPhotoInfo: TextView
     private lateinit var txtDateTime: TextView
     private lateinit var btnPrevious: Button
@@ -129,6 +133,7 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("about:blank")
         imageView1 = findViewById(R.id.imageView1)
         imageView2 = findViewById(R.id.imageView2)
+        cardPhotoInfo = findViewById(R.id.cardPhotoInfo)
         txtPhotoInfo = findViewById(R.id.txtPhotoInfo)
         txtDateTime = findViewById(R.id.txtDateTime)
         btnPrevious = findViewById(R.id.btnPrevious)
@@ -519,7 +524,7 @@ class MainActivity : AppCompatActivity() {
         btnPause.visibility = if (useWebView) View.GONE else View.VISIBLE
         btnNext.visibility = if (useWebView) View.GONE else View.VISIBLE
         swipeRefreshLayout.isEnabled = !settingsLock
-        txtPhotoInfo.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
+        cardPhotoInfo.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
         txtDateTime.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
         if (keepScreenOn) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -630,7 +635,7 @@ class MainActivity : AppCompatActivity() {
             imageView2.scaleType = ImageView.ScaleType.FIT_CENTER
         }
         if (serverSettings.showPhotoDate || serverSettings.showImageLocation) {
-            txtPhotoInfo.visibility = View.VISIBLE
+            cardPhotoInfo.visibility = View.VISIBLE
             txtPhotoInfo.textSize =
                 Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
             if (serverSettings.primaryColor != null) {
