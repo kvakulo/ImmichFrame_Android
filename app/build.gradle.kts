@@ -78,6 +78,8 @@ dependencies {
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.retrofit)
     implementation(libs.retrofitgson)
+    implementation(libs.okhttp.core)
+    implementation(libs.okhttp.logging)
     implementation(libs.nanohttpd)
     implementation(libs.androidx.preference)
     testImplementation(libs.junit)
@@ -87,4 +89,13 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+configurations.all {
+    resolutionStrategy {
+        force(
+            "com.squareup.okhttp3:okhttp:3.12.13",
+            "com.squareup.okhttp3:logging-interceptor:3.12.13"
+        )
+    }
 }
