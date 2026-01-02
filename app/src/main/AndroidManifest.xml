@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.immichframe.immichframe">
 
-    <uses-sdk tools:overrideLibrary="androidx.*" />
+    <uses-sdk tools:overrideLibrary="androidx.*, com.google.android.material" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />

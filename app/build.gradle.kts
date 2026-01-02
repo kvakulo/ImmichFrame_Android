@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import java.util.Properties
 import java.io.FileInputStream
 plugins {
@@ -28,10 +29,11 @@ android {
 
     defaultConfig {
         applicationId = "com.immichframe.immichframe"
-        minSdk = 23
+        minSdk = 19
         targetSdk = 36
         versionCode = 48
         versionName = "1.0.48.0"
+        multiDexEnabled = true
     }
 
     buildTypes {
