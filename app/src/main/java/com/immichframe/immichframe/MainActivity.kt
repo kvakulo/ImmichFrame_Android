@@ -50,6 +50,8 @@ import androidx.core.graphics.toColorInt
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 import androidx.core.view.isVisible
+import com.immichframe.immichframe.moderntls.ModernTlsOkHttpClient
+import java.security.Security
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -113,6 +115,10 @@ class MainActivity : AppCompatActivity() {
         //force dark mode
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Security.insertProviderAt(ModernTlsOkHttpClient.conscrypt(), 1);
+        }
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.main_view)
@@ -470,6 +476,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 private fun handleFailure(t: Throwable) {
+                    Log.e("Settings", "Error when fetching server settings", t)
                     if (useWebView) {
                         return
                     }

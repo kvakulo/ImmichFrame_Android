@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.retrofitgson)
     implementation(libs.okhttp.core)
     implementation(libs.okhttp.logging)
+    implementation(libs.conscrypt.android)
     implementation(libs.nanohttpd)
     implementation(libs.androidx.preference)
     testImplementation(libs.junit)

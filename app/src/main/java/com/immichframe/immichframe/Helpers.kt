@@ -6,13 +6,14 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.util.Base64
-import retrofit2.Call
-import retrofit2.http.GET
 import androidx.core.graphics.scale
+import com.immichframe.immichframe.moderntls.ModernTlsOkHttpClient.enableModernTls
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.http.GET
 import java.util.concurrent.TimeUnit
 
 object Helpers {
@@ -169,7 +170,8 @@ object Helpers {
     fun createRetrofit(baseUrl: String, authSecret: String): Retrofit {
         val normalizedBaseUrl = if (!baseUrl.endsWith("/")) "$baseUrl/" else baseUrl
 
-        val client = OkHttpClient.Builder().addInterceptor { chain ->
+        val client = enableModernTls(OkHttpClient.Builder())
+            .addInterceptor { chain ->
                 val originalRequest = chain.request()
 
                 val request = if (authSecret.isNotEmpty()) {
@@ -186,7 +188,7 @@ object Helpers {
             .addConverterFactory(GsonConverterFactory.create()).build()
     }
 
-    private val reachabilityClient = OkHttpClient.Builder()
+    private val reachabilityClient = enableModernTls(OkHttpClient.Builder())
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .build()
