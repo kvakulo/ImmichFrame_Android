@@ -167,7 +167,7 @@ object Helpers {
         fun getWeather(): Call<Weather>
     }
 
-    fun createRetrofit(baseUrl: String, authSecret: String, cfClientId: String, cfClientSecret: String): Retrofit {
+    fun createRetrofit(baseUrl: String, authSecret: String, headers: String): Retrofit {
         val normalizedBaseUrl = if (!baseUrl.endsWith("/")) "$baseUrl/" else baseUrl
 
         val client = enableModernTls(OkHttpClient.Builder())
@@ -180,13 +180,14 @@ object Helpers {
                     newRequest.header("Authorization", "Bearer $authSecret")
                 }
 
-                if(cfClientId.isNotEmpty()) {
-                    newRequest.header("CF-Access-Client-Id", cfClientId)
+                if(headers.isNotEmpty()) {
+                    val headerList = headers.split(";")
+                    for(header in headerList) {
+                        val (name, value) = header.split(":", limit = 2)
+                        newRequest.header(name.trim(), value.trim())
+                    }
                 }
 
-                if(cfClientSecret.isNotEmpty()) {
-                    newRequest.header("CF-Access-Client-Secret", cfClientSecret)
-                }
 
                 chain.proceed(newRequest.build())
             }.build()

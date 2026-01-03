@@ -12,12 +12,8 @@
             android:title="Authorization Secret" />
         <EditTextPreference
             android:defaultValue=""
-            android:key="cloudflareClientId"
-            android:title="Cloudflare Client Id" />
-        <EditTextPreference
-            android:defaultValue=""
-            android:key="cloudflareClientSecret"
-            android:title="Cloudflare Client Secret" />
+            android:key="headers"
+            android:title="Headers" />
     </PreferenceCategory>
 
     <PreferenceCategory android:title="Display Options">

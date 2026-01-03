@@ -514,8 +514,7 @@ class MainActivity : AppCompatActivity() {
         useWebView = prefs.getBoolean("useWebView", true)
         keepScreenOn = prefs.getBoolean("keepScreenOn", true)
         val authSecret = prefs.getString("authSecret", "") ?: ""
-        val cfClientId = prefs.getString("cloudflareClientId", "") ?: ""
-        val cfClientSecret = prefs.getString("cloudflareClientSecret", "") ?: ""
+        val headers = prefs.getString("headers", "") ?: ""
         val screenDim = prefs.getBoolean("screenDim", false)
         val settingsLock = prefs.getBoolean("settingsLock", false)
 
@@ -610,7 +609,7 @@ class MainActivity : AppCompatActivity() {
             webView.settings.domStorageEnabled = true
             loadWebViewWithRetry(savedUrl)
         } else {
-            retrofit = Helpers.createRetrofit(savedUrl, authSecret, cfClientId, cfClientSecret)
+            retrofit = Helpers.createRetrofit(savedUrl, authSecret, headers)
             apiService = retrofit!!.create(Helpers.ApiService::class.java)
             getServerSettings(
                 onSuccess = { settings ->
