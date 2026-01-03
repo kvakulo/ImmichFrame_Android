@@ -60,8 +60,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var imageView1: ImageView
     private lateinit var imageView2: ImageView
-    private lateinit var cardPhotoInfo: MaterialCardView
-    private lateinit var txtPhotoInfo: TextView
+    private lateinit var cardPhotoInfoLeft: MaterialCardView
+    private lateinit var txtPhotoInfoLeft: TextView
+    private lateinit var cardPhotoInfoRight: MaterialCardView
+    private lateinit var txtPhotoInfoRight: TextView
     private lateinit var txtDateTime: TextView
     private lateinit var btnPrevious: Button
     private lateinit var btnPause: Button
@@ -133,8 +135,10 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl("about:blank")
         imageView1 = findViewById(R.id.imageView1)
         imageView2 = findViewById(R.id.imageView2)
-        cardPhotoInfo = findViewById(R.id.cardPhotoInfo)
-        txtPhotoInfo = findViewById(R.id.txtPhotoInfo)
+        cardPhotoInfoLeft = findViewById(R.id.cardPhotoInfoLeft)
+        txtPhotoInfoLeft = findViewById(R.id.txtPhotoInfoLeft)
+        cardPhotoInfoRight = findViewById(R.id.cardPhotoInfoRight)
+        txtPhotoInfoRight = findViewById(R.id.txtPhotoInfoRight)
         txtDateTime = findViewById(R.id.txtDateTime)
         btnPrevious = findViewById(R.id.btnPrevious)
         btnPause = findViewById(R.id.btnPause)
@@ -282,41 +286,67 @@ class MainActivity : AppCompatActivity() {
         isShowingFirst = !isShowingFirst
 
         if (isMerged) {
-            val mergedPhotoDate =
-                if (portraitCache!!.photoDate.isNotEmpty() || imageResponse.photoDate.isNotEmpty()) {
-                    "${portraitCache!!.photoDate} | ${imageResponse.photoDate}"
-                } else {
-                    ""
-                }
-
-            val mergedImageLocation =
-                if (portraitCache!!.imageLocation.isNotEmpty() || imageResponse.imageLocation.isNotEmpty()) {
-                    "${portraitCache!!.imageLocation} | ${imageResponse.imageLocation}"
-                } else {
-                    ""
-                }
-
-            updatePhotoInfo(mergedPhotoDate, mergedImageLocation)
+            updatePhotoInfo(
+                portraitCache!!.photoDate,
+                portraitCache!!.imageLocation,
+                imageResponse.photoDate,
+                imageResponse.imageLocation)
             portraitCache = null
         } else {
-            updatePhotoInfo(imageResponse.photoDate, imageResponse.imageLocation)
+            updatePhotoInfo(
+                "",
+                "",
+                imageResponse.photoDate,
+                imageResponse.imageLocation)
         }
 
         updateDateTimeWeather()
     }
 
-    private fun updatePhotoInfo(photoDate: String, photoLocation: String) {
+    private fun updatePhotoInfo(leftPhotoDate: String, leftPhotoLocation: String, rightPhotoDate: String, rightPhotoLocation: String) {
         if (serverSettings.showPhotoDate || serverSettings.showImageLocation) {
-            val photoInfo = buildString {
-                if (serverSettings.showPhotoDate && photoDate.isNotEmpty()) {
-                    append(photoDate)
+                txtPhotoInfoLeft.textSize =
+                Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
+                txtPhotoInfoRight.textSize =
+                    Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
+                if (serverSettings.primaryColor != null) {
+                    txtPhotoInfoLeft.setTextColor(
+                        runCatching { serverSettings.primaryColor!!.toColorInt() }
+                            .getOrDefault(Color.WHITE)
+                    )
+                    txtPhotoInfoRight.setTextColor(
+                        runCatching { serverSettings.primaryColor!!.toColorInt() }
+                            .getOrDefault(Color.WHITE)
+                    )
+                } else {
+                    txtPhotoInfoLeft.setTextColor(Color.WHITE)
+                    txtPhotoInfoRight.setTextColor(Color.WHITE)
                 }
-                if (serverSettings.showImageLocation && photoLocation.isNotEmpty()) {
+
+
+            val leftPhotoInfo = buildString {
+                if (serverSettings.showPhotoDate && leftPhotoDate.isNotEmpty()) {
+                    append(leftPhotoDate)
+                }
+                if (serverSettings.showImageLocation && leftPhotoLocation.isNotEmpty()) {
                     if (isNotEmpty()) append("\n")
-                    append(photoLocation)
+                    append(leftPhotoLocation)
                 }
             }
-            txtPhotoInfo.text = photoInfo
+            txtPhotoInfoLeft.text = leftPhotoInfo
+            cardPhotoInfoLeft.visibility = if (leftPhotoInfo.isNotEmpty()) View.VISIBLE else View.GONE
+
+            val rightPhotoInfo = buildString {
+                if (serverSettings.showPhotoDate && rightPhotoDate.isNotEmpty()) {
+                    append(rightPhotoDate)
+                }
+                if (serverSettings.showImageLocation && rightPhotoLocation.isNotEmpty()) {
+                    if (isNotEmpty()) append("\n")
+                    append(rightPhotoLocation)
+                }
+            }
+            txtPhotoInfoRight.text = rightPhotoInfo
+            cardPhotoInfoRight.visibility = if (rightPhotoInfo.isNotEmpty()) View.VISIBLE else View.GONE
         }
     }
 
@@ -525,7 +555,8 @@ class MainActivity : AppCompatActivity() {
         btnPause.visibility = if (useWebView) View.GONE else View.VISIBLE
         btnNext.visibility = if (useWebView) View.GONE else View.VISIBLE
         swipeRefreshLayout.isEnabled = !settingsLock
-        cardPhotoInfo.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
+        cardPhotoInfoLeft.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
+        cardPhotoInfoRight.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
         txtDateTime.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
         if (keepScreenOn) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -635,19 +666,7 @@ class MainActivity : AppCompatActivity() {
             imageView1.scaleType = ImageView.ScaleType.FIT_CENTER
             imageView2.scaleType = ImageView.ScaleType.FIT_CENTER
         }
-        if (serverSettings.showPhotoDate || serverSettings.showImageLocation) {
-            cardPhotoInfo.visibility = View.VISIBLE
-            txtPhotoInfo.textSize =
-                Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
-            if (serverSettings.primaryColor != null) {
-                txtPhotoInfo.setTextColor(
-                    runCatching { serverSettings.primaryColor!!.toColorInt() }
-                        .getOrDefault(Color.WHITE)
-                )
-            } else {
-                txtPhotoInfo.setTextColor(Color.WHITE)
-            }
-        }
+
         if (serverSettings.showClock) {
             txtDateTime.visibility = View.VISIBLE
             txtDateTime.textSize = Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
@@ -738,6 +757,10 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 KeyEvent.KEYCODE_DPAD_CENTER -> {
+                    val text = if(isImageTimerRunning) "Pause" else "Play"
+                    val toast = Toast.makeText(this, text, Toast.LENGTH_SHORT)
+                    toast.setGravity(Gravity.CENTER, 0, 0)
+                    toast.show()
                     pauseAction()
                     return true
                 }
@@ -745,16 +768,26 @@ class MainActivity : AppCompatActivity() {
             if (!useWebView) {
                 when (event.keyCode) {
                     KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        val toast = Toast.makeText(this, "Previous", Toast.LENGTH_SHORT)
+                        toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.START, 0, 0)
+                        toast.show()
                         previousAction()
                         return true
                     }
 
                     KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        val toast = Toast.makeText(this, "Next", Toast.LENGTH_SHORT)
+                        toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.END, 0, 0)
+                        toast.show()
                         nextAction()
                         return true
                     }
 
                     KeyEvent.KEYCODE_SPACE -> {
+                        val text = if(isImageTimerRunning) "Pause" else "Play"
+                        val toast = Toast.makeText(this, text, Toast.LENGTH_SHORT)
+                        toast.setGravity(Gravity.CENTER, 0, 0)
+                        toast.show()
                         pauseAction()
                         return true
                     }
