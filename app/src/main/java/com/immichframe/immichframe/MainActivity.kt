@@ -3,11 +3,16 @@ package com.immichframe.immichframe
 import android.animation.ObjectAnimator
 import android.animation.PropertyValuesHolder
 import android.annotation.SuppressLint
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.app.admin.DevicePolicyManager
+import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -20,14 +25,7 @@ import android.util.Log
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
 import android.view.WindowManager
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -35,29 +33,29 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.view.WindowCompat
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.graphics.toColorInt
 import androidx.preference.PreferenceManager
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.android.material.card.MaterialCardView
+import com.immichframe.immichframe.moderntls.ModernTlsOkHttpClient
+import com.immichframe.immichframe.sensors.ActivitySensor
+import com.immichframe.immichframe.sensors.SensorServiceCallback
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Runnable
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import retrofit2.Retrofit
+import java.security.Security
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlinx.coroutines.*
-import androidx.lifecycle.lifecycleScope
-import androidx.core.graphics.toColorInt
-import androidx.core.graphics.drawable.toDrawable
-import androidx.core.net.toUri
-import androidx.core.view.isVisible
-import androidx.core.view.setPadding
-import com.google.android.material.card.MaterialCardView
-import com.immichframe.immichframe.moderntls.ModernTlsOkHttpClient
-import java.security.Security
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var webView: WebView
     private lateinit var imageView1: ImageView
     private lateinit var imageView2: ImageView
     private lateinit var cardPhotoInfoLeft: MaterialCardView
@@ -74,13 +72,12 @@ class MainActivity : AppCompatActivity() {
     private var retrofit: Retrofit? = null
     private lateinit var apiService: Helpers.ApiService
     private lateinit var rcpServer: RpcHttpServer
-    private var isWeatherTimerRunning = false
-    private var useWebView = true
     private var keepScreenOn = true
     private var blurredBackground = true
     private var showCurrentDate = true
     private var currentWeather = ""
     private var isImageTimerRunning = false
+    private var isScreenTurnedOffByUser = false
     private val handler = Handler(Looper.getMainLooper())
     private var previousImage: Helpers.ImageResponse? = null
     private var currentImage: Helpers.ImageResponse? = null
@@ -93,20 +90,32 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-    private val weatherRunnable = object : Runnable {
-        override fun run() {
-            if (isWeatherTimerRunning) {
-                handler.postDelayed(this, 600000)
-                getWeather()
+
+    private val sensorServiceCallback = object : SensorServiceCallback {
+        override fun sleep() {
+            runOnUiThread {
+                turnScreenOff()
+            }
+        }
+
+        override fun wakeUp() {
+            runOnUiThread {
+                if(!isDuringDimHours()) {
+                    turnScreenOn()
+                }
             }
         }
     }
-    private val dimCheckRunnable = object : Runnable {
+
+    private val sensorServiceRunnable = object : Runnable {
         override fun run() {
-            checkDimTime()
-            handler.postDelayed(this, 30000)
+            activitySensor?.checkSensors(sensorServiceCallback)
+
+            handler.postDelayed(this, 1000L)
         }
     }
+
+    private var activitySensor: ActivitySensor? = null
     private var isShowingFirst = true
     private var zoomAnimator: ObjectAnimator? = null
 
@@ -117,22 +126,28 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+    private val alarmReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            Log.d("alarm", "Received intent in activity")
+
+            turnScreenOff()
+            scheduleNextTurnOff()
+        }
+    }
+
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate(savedInstanceState: Bundle?) {
         //force dark mode
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
         super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Security.insertProviderAt(ModernTlsOkHttpClient.conscrypt(), 1);
+            Security.insertProviderAt(ModernTlsOkHttpClient.conscrypt(), 1)
         }
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.main_view)
-        hideSystemUI()
 
-        webView = findViewById(R.id.webView)
-        webView.setBackgroundColor(Color.BLACK)
-        webView.loadUrl("about:blank")
         imageView1 = findViewById(R.id.imageView1)
         imageView2 = findViewById(R.id.imageView2)
         cardPhotoInfoLeft = findViewById(R.id.cardPhotoInfoLeft)
@@ -163,7 +178,11 @@ class MainActivity : AppCompatActivity() {
             val toast = Toast.makeText(this, "Pause", Toast.LENGTH_SHORT)
             toast.setGravity(Gravity.CENTER, 0, 0)
             toast.show()
-            pauseAction()
+            if (isPaused()) {
+                resumeAction()
+            } else {
+                pauseAction()
+            }
         }
 
         btnNext.setOnClickListener {
@@ -174,15 +193,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         rcpServer = RpcHttpServer(
-            onDimCommand = { dim -> runOnUiThread { screenDim(dim) } },
             onNextCommand = { runOnUiThread { nextAction() } },
             onPreviousCommand = { runOnUiThread { previousAction() } },
             onPauseCommand = { runOnUiThread { pauseAction() } },
             onSettingsCommand = { runOnUiThread { settingsAction() } },
             onBrightnessCommand = { brightness -> runOnUiThread { screenBrightnessAction(brightness) } },
-            onScreenOffCommand = { runOnUiThread { turnScreenOff() }},
-            onScreenOnCommand = { runOnUiThread { turnScreenOn() }},
-            onRebootCommand = { runOnUiThread { reboot() }},
+            onScreenOffCommand = { runOnUiThread { turnScreenOff(true); } },
+            onScreenOnCommand = { runOnUiThread { turnScreenOn(true); } },
         )
         rcpServer.start()
 
@@ -195,6 +212,11 @@ class MainActivity : AppCompatActivity() {
         } else {
             loadSettings()
         }
+
+        registerReceiver(
+            alarmReceiver,
+            IntentFilter("TURN_OFF_ALARM")
+        )
     }
 
     private fun showImage(imageResponse: Helpers.ImageResponse) {
@@ -287,41 +309,48 @@ class MainActivity : AppCompatActivity() {
 
         if (isMerged) {
             updatePhotoInfo(
-                portraitCache!!.photoDate,
-                portraitCache!!.imageLocation,
+                portraitCache?.photoDate ?: "",
+                portraitCache?.imageLocation ?: "",
                 imageResponse.photoDate,
-                imageResponse.imageLocation)
+                imageResponse.imageLocation
+            )
             portraitCache = null
         } else {
             updatePhotoInfo(
                 "",
                 "",
                 imageResponse.photoDate,
-                imageResponse.imageLocation)
+                imageResponse.imageLocation
+            )
         }
 
         updateDateTimeWeather()
     }
 
-    private fun updatePhotoInfo(leftPhotoDate: String, leftPhotoLocation: String, rightPhotoDate: String, rightPhotoLocation: String) {
+    private fun updatePhotoInfo(
+        leftPhotoDate: String,
+        leftPhotoLocation: String,
+        rightPhotoDate: String,
+        rightPhotoLocation: String
+    ) {
         if (serverSettings.showPhotoDate || serverSettings.showImageLocation) {
-                txtPhotoInfoLeft.textSize =
+            txtPhotoInfoLeft.textSize =
                 Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
-                txtPhotoInfoRight.textSize =
-                    Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
-                if (serverSettings.primaryColor != null) {
-                    txtPhotoInfoLeft.setTextColor(
-                        runCatching { serverSettings.primaryColor!!.toColorInt() }
-                            .getOrDefault(Color.WHITE)
-                    )
-                    txtPhotoInfoRight.setTextColor(
-                        runCatching { serverSettings.primaryColor!!.toColorInt() }
-                            .getOrDefault(Color.WHITE)
-                    )
-                } else {
-                    txtPhotoInfoLeft.setTextColor(Color.WHITE)
-                    txtPhotoInfoRight.setTextColor(Color.WHITE)
-                }
+            txtPhotoInfoRight.textSize =
+                Helpers.cssFontSizeToSp(serverSettings.baseFontSize, this)
+            if (serverSettings.primaryColor != null) {
+                txtPhotoInfoLeft.setTextColor(
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
+                )
+                txtPhotoInfoRight.setTextColor(
+                    runCatching { serverSettings.primaryColor!!.toColorInt() }
+                        .getOrDefault(Color.WHITE)
+                )
+            } else {
+                txtPhotoInfoLeft.setTextColor(Color.WHITE)
+                txtPhotoInfoRight.setTextColor(Color.WHITE)
+            }
 
 
             val leftPhotoInfo = buildString {
@@ -334,7 +363,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             txtPhotoInfoLeft.text = leftPhotoInfo
-            cardPhotoInfoLeft.visibility = if (leftPhotoInfo.isNotEmpty()) View.VISIBLE else View.GONE
+            cardPhotoInfoLeft.visibility =
+                if (leftPhotoInfo.isNotEmpty()) View.VISIBLE else View.GONE
 
             val rightPhotoInfo = buildString {
                 if (serverSettings.showPhotoDate && rightPhotoDate.isNotEmpty()) {
@@ -346,7 +376,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             txtPhotoInfoRight.text = rightPhotoInfo
-            cardPhotoInfoRight.visibility = if (rightPhotoInfo.isNotEmpty()) View.VISIBLE else View.GONE
+            cardPhotoInfoRight.visibility =
+                if (rightPhotoInfo.isNotEmpty()) View.VISIBLE else View.GONE
         }
     }
 
@@ -433,18 +464,6 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacks(imageRunnable)
     }
 
-    private fun startWeatherTimer() {
-        if (!isWeatherTimerRunning) {
-            isWeatherTimerRunning = true
-            handler.post(weatherRunnable)
-        }
-    }
-
-    private fun stopWeatherTimer() {
-        isWeatherTimerRunning = false
-        handler.removeCallbacks(weatherRunnable)
-    }
-
     private fun startZoomAnimation(imageView: ImageView) {
         zoomAnimator?.cancel()
         zoomAnimator = ObjectAnimator.ofPropertyValuesHolder(
@@ -456,27 +475,6 @@ class MainActivity : AppCompatActivity() {
         zoomAnimator?.start()
     }
 
-    private fun getWeather() {
-        apiService.getWeather().enqueue(object : Callback<Helpers.Weather> {
-            override fun onResponse(
-                call: Call<Helpers.Weather>,
-                response: Response<Helpers.Weather>
-            ) {
-                if (response.isSuccessful) {
-                    val weatherResponse = response.body()
-                    if (weatherResponse != null) {
-                        currentWeather =
-                            "\n ${weatherResponse.location}, ${"%.1f".format(weatherResponse.temperature)}${weatherResponse.unit} \n ${weatherResponse.description}"
-                    }
-                }
-            }
-
-            override fun onFailure(call: Call<Helpers.Weather>, t: Throwable) {
-                Log.e("Weather", "Failed to fetch weather: ${t.message}")
-            }
-        })
-    }
-
     private fun getServerSettings(
         onSuccess: (Helpers.ServerSettings) -> Unit,
         onFailure: (Throwable) -> Unit,
@@ -486,9 +484,6 @@ class MainActivity : AppCompatActivity() {
         var retryCount = 0
 
         fun attemptFetch() {
-            if (useWebView) {
-                return
-            }
             apiService.getServerSettings().enqueue(object : Callback<Helpers.ServerSettings> {
                 override fun onResponse(
                     call: Call<Helpers.ServerSettings>,
@@ -512,9 +507,6 @@ class MainActivity : AppCompatActivity() {
 
                 private fun handleFailure(t: Throwable) {
                     Log.e("Settings", "Error when fetching server settings", t)
-                    if (useWebView) {
-                        return
-                    }
                     if (retryCount < maxRetries) {
                         retryCount++
                         Toast.makeText(
@@ -540,122 +532,44 @@ class MainActivity : AppCompatActivity() {
         val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
         blurredBackground = prefs.getBoolean("blurredBackground", true)
         showCurrentDate = prefs.getBoolean("showCurrentDate", true)
-        var savedUrl = prefs.getString("webview_url", "") ?: ""
-        useWebView = prefs.getBoolean("useWebView", true)
+        val savedUrl = prefs.getString("webview_url", "") ?: ""
+
         keepScreenOn = prefs.getBoolean("keepScreenOn", true)
         val authSecret = prefs.getString("authSecret", "") ?: ""
         val headers = prefs.getString("headers", "") ?: ""
-        val screenDim = prefs.getBoolean("screenDim", false)
+        //val screenDim = prefs.getBoolean("screenDim", false)
         val settingsLock = prefs.getBoolean("settingsLock", false)
 
-        webView.visibility = if (useWebView) View.VISIBLE else View.GONE
-        imageView1.visibility = if (useWebView) View.GONE else View.VISIBLE
-        imageView2.visibility = if (useWebView) View.GONE else View.VISIBLE
-        btnPrevious.visibility = if (useWebView) View.GONE else View.VISIBLE
-        btnPause.visibility = if (useWebView) View.GONE else View.VISIBLE
-        btnNext.visibility = if (useWebView) View.GONE else View.VISIBLE
         swipeRefreshLayout.isEnabled = !settingsLock
-        cardPhotoInfoLeft.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
-        cardPhotoInfoRight.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
+        cardPhotoInfoLeft.visibility =
+            View.GONE //enabled in onSettingsLoaded based on server settings
+        cardPhotoInfoRight.visibility =
+            View.GONE //enabled in onSettingsLoaded based on server settings
         txtDateTime.visibility = View.GONE //enabled in onSettingsLoaded based on server settings
         if (keepScreenOn) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-        if (screenDim) {
-            handler.post(dimCheckRunnable)
-        } else {
-            handler.removeCallbacks(dimCheckRunnable)
-            dimOverlay.visibility = View.GONE
-            val lp = WindowManager.LayoutParams()
-            lp.copyFrom(window.attributes)
-            lp.screenBrightness = 1f
-            window.attributes = lp
-        }
-        if (useWebView) {
-            savedUrl = if (authSecret.isNotEmpty()) {
-                savedUrl.toUri()
-                    .buildUpon()
-                    .appendQueryParameter("authsecret", authSecret)
-                    .build()
-                    .toString()
-            } else {
-                savedUrl
+
+        val wakeLockMinutes = prefs.getString("wakeLockMinutes", "15")
+        activitySensor = ActivitySensor(this, wakeLockMinutes!!.toInt())
+
+        retrofit = Helpers.createRetrofit(savedUrl, authSecret, headers)
+        apiService = retrofit!!.create(Helpers.ApiService::class.java)
+        getServerSettings(
+            onSuccess = { settings ->
+                serverSettings = settings
+                onSettingsLoaded()
+            },
+            onFailure = { error ->
+                Toast.makeText(
+                    this,
+                    "Failed to load server settings: ${error.localizedMessage}",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
-            handler.removeCallbacks(imageRunnable)
-            handler.removeCallbacks(weatherRunnable)
-
-            webView.webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(
-                    view: WebView?,
-                    request: WebResourceRequest?
-                ): Boolean {
-                    val url = request?.url
-                    if (url != null) {
-                        // Open the URL in the default browser
-                        val intent = Intent(Intent.ACTION_VIEW, url)
-                        startActivity(intent)
-                        return true
-                    }
-                    return false
-                }
-
-                override fun onReceivedError(
-                    view: WebView?,
-                    request: WebResourceRequest?,
-                    error: WebResourceError?
-                ) {
-                    super.onReceivedError(view, request, error)
-
-                    if (request?.isForMainFrame == true && error != null) {
-                        view?.loadUrl("file:///android_asset/error_page.html")
-
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            val errorCode = error.errorCode
-                            val errorDescription = error.description.toString().replace("'", "\\'")
-                            view?.evaluateJavascript("showError('$errorCode', '$errorDescription')", null)
-                        }, 500)
-                    }
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        //check url again in case the user has changed it
-                        var currentUrl = prefs.getString("webview_url", "")?.trim() ?: ""
-                        currentUrl = if (authSecret.isNotEmpty()) {
-                            savedUrl.toUri()
-                                .buildUpon()
-                                .appendQueryParameter("authsecret", authSecret)
-                                .build()
-                                .toString()
-                        } else {
-                            currentUrl
-                        }
-                        if (currentUrl.isNotEmpty()) {
-                            webView.loadUrl(currentUrl)
-                        }
-                    }, 5000)
-                }
-            }
-            webView.settings.javaScriptEnabled = true
-            webView.settings.cacheMode = WebSettings.LOAD_NO_CACHE
-            webView.settings.domStorageEnabled = true
-            loadWebViewWithRetry(savedUrl)
-        } else {
-            retrofit = Helpers.createRetrofit(savedUrl, authSecret, headers)
-            apiService = retrofit!!.create(Helpers.ApiService::class.java)
-            getServerSettings(
-                onSuccess = { settings ->
-                    serverSettings = settings
-                    onSettingsLoaded()
-                },
-                onFailure = { error ->
-                    Toast.makeText(
-                        this,
-                        "Failed to load server settings: ${error.localizedMessage}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            )
-        }
+        )
     }
 
     private fun onSettingsLoaded() {
@@ -684,56 +598,36 @@ class MainActivity : AppCompatActivity() {
 
         getNextImage()
         startImageTimer()
-
-        if (serverSettings.showWeatherDescription) {
-            startWeatherTimer()
-        }
+        this.handler.post(sensorServiceRunnable)
     }
 
     private fun previousAction() {
-        if (useWebView) {
-            // Simulate a key press
-            webView.requestFocus()
-            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)
-            dispatchKeyEvent(event)
-        } else {
-            val safePreviousImage = previousImage
-            if (safePreviousImage != null) {
-                stopImageTimer()
-                showImage(safePreviousImage)
-                startImageTimer()
-            }
-        }
-    }
-
-    private fun nextAction() {
-        if (useWebView) {
-            // Simulate a key press
-            webView.requestFocus()
-            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)
-            dispatchKeyEvent(event)
-        } else {
+        val safePreviousImage = previousImage
+        if (safePreviousImage != null) {
             stopImageTimer()
-            getNextImage()
+            showImage(safePreviousImage)
             startImageTimer()
         }
     }
 
+    private fun nextAction() {
+        stopImageTimer()
+        getNextImage()
+        startImageTimer()
+    }
+
+    private fun isPaused(): Boolean {
+        return !isImageTimerRunning
+    }
+
     private fun pauseAction() {
-        if (useWebView) {
-            // Simulate a key press
-            webView.requestFocus()
-            val event = KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_SPACE)
-            dispatchKeyEvent(event)
-        } else {
-            zoomAnimator?.cancel()
-            if (isImageTimerRunning) {
-                stopImageTimer()
-            } else {
-                getNextImage()
-                startImageTimer()
-            }
-        }
+        zoomAnimator?.cancel()
+        stopImageTimer()
+    }
+
+    private fun resumeAction() {
+        getNextImage()
+        startImageTimer()
     }
 
     private fun settingsAction() {
@@ -751,182 +645,103 @@ class MainActivity : AppCompatActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN) {
             when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> {
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_F4 -> { // Settings button
                     settingsAction()
                     return true
                 }
 
                 KeyEvent.KEYCODE_DPAD_CENTER -> {
-                    val text = if(isImageTimerRunning) "Pause" else "Play"
+                    val text = if (isImageTimerRunning) "|| Pause" else "▶ Play"
                     val toast = Toast.makeText(this, text, Toast.LENGTH_SHORT)
                     toast.setGravity(Gravity.CENTER, 0, 0)
                     toast.show()
-                    pauseAction()
+                    if (isPaused()) {
+                        resumeAction()
+                    } else {
+                        pauseAction()
+                    }
                     return true
                 }
-            }
-            if (!useWebView) {
-                when (event.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        val toast = Toast.makeText(this, "Previous", Toast.LENGTH_SHORT)
-                        toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.START, 0, 0)
-                        toast.show()
-                        previousAction()
-                        return true
-                    }
 
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        val toast = Toast.makeText(this, "Next", Toast.LENGTH_SHORT)
-                        toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.END, 0, 0)
-                        toast.show()
-                        nextAction()
-                        return true
-                    }
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    val toast = Toast.makeText(this, "← Previous", Toast.LENGTH_SHORT)
+                    toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.START, 0, 0)
+                    toast.show()
+                    previousAction()
+                    return true
+                }
 
-                    KeyEvent.KEYCODE_SPACE -> {
-                        val text = if(isImageTimerRunning) "Pause" else "Play"
-                        val toast = Toast.makeText(this, text, Toast.LENGTH_SHORT)
-                        toast.setGravity(Gravity.CENTER, 0, 0)
-                        toast.show()
-                        pauseAction()
-                        return true
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val toast = Toast.makeText(this, "Next →", Toast.LENGTH_SHORT)
+                    toast.setGravity(Gravity.CENTER_VERTICAL or Gravity.END, 0, 0)
+                    toast.show()
+                    nextAction()
+                    return true
+                }
+
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    // available
+                    return true
+                }
+
+
+                KeyEvent.KEYCODE_F1 -> { // Power button
+                    if (isScreenOn()) {
+                        turnScreenOff(true)
+                    } else {
+                        turnScreenOn(true)
                     }
+                    return true
+                }
+
+                KeyEvent.KEYCODE_F2 -> { // Album button
+                    // available
+                    return true
                 }
             }
         }
         return super.dispatchKeyEvent(event)
     }
 
-    @SuppressLint("NewApi")
-    @Suppress("DEPRECATION")
-    private fun hideSystemUI() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // For API 30 and above
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                controller.systemBarsBehavior =
-                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        } else {
-            // For API 21 to 29
-            window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    )
-        }
+    private fun isScreenOn(): Boolean {
+        val powerManager = this.getSystemService(POWER_SERVICE) as PowerManager
+        @Suppress("DEPRECATION")
+        return powerManager.isScreenOn
     }
 
-    private fun isScreenOn(context: Context): Boolean {
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        return powerManager.isInteractive
-    }
+    private fun turnScreenOff(isUserInitiated: Boolean = false) {
+        val isOn = isScreenOn()
+        if (isOn) {
+            isScreenTurnedOffByUser = isUserInitiated
 
-    private fun toggleScreen() {
-        try {
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "input keyevent 26"))
-            process.waitFor()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun turnScreenOff() {
-        if (isScreenOn(this)) {
+            Log.i("immichframe", "Turns screen off")
             pauseAction()
-            screenDim(true)
-            toggleScreen()
-        }
-    }
 
-    private fun turnScreenOn() {
-        if (!isScreenOn(this)) {
-            pauseAction()
-            toggleScreen()
-            screenDim(false)
-        }
-    }
+            val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val admin = ComponentName(this, MyDeviceAdminReceiver::class.java)
 
-    private fun reboot() {
-        try {
-            Runtime.getRuntime().exec("su -c reboot")
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun screenDim(dim: Boolean) {
-        val lp = window.attributes
-        if (dim) {
-            lp.screenBrightness = 0.01f
-            window.attributes = lp
-            if (dimOverlay.visibility != View.VISIBLE) {
-                dimOverlay.apply {
-                    visibility = View.VISIBLE
-                    alpha = 0f
-                    if (useWebView) {
-                        //webView.loadUrl("about:blank")
-                    } else {
-                        stopImageTimer()
-                        stopWeatherTimer()
-                    }
-                    animate()
-                        .alpha(0.99f)
-                        .setDuration(500L)
-                        .start()
-                }
-            }
-        } else {
-            lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-            window.attributes = lp
-            if (dimOverlay.isVisible) {
-                dimOverlay.animate()
-                    .alpha(0f)
-                    .setDuration(500L)
-                    .withEndAction {
-                        dimOverlay.visibility = View.GONE
-                        //loadSettings()
-                    }
-                    .start()
+            if (dpm.isAdminActive(admin)) {
+                dpm.lockNow()
             }
         }
     }
 
-    private fun checkDimTime() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
-        val startHour = prefs.getInt("dimStartHour", 22)
-        val startMinute = prefs.getInt("dimStartMinute", 0)
-        val endHour = prefs.getInt("dimEndHour", 6)
-        val endMinute = prefs.getInt("dimEndMinute", 0)
+    private fun turnScreenOn(isUserInitiated: Boolean = false) {
+        val isOff = !isScreenOn()
+        val shouldProceed = isUserInitiated || !isScreenTurnedOffByUser
+        if (isOff && shouldProceed) {
+            isScreenTurnedOffByUser = false
 
-        val now = Calendar.getInstance()
-        val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        val startMinutes = startHour * 60 + startMinute
-        val endMinutes = endHour * 60 + endMinute
+            Log.i("immichframe", "Turns screen on")
+            resumeAction()
 
-        val shouldDim =
-            if (startMinutes < endMinutes) {
-                nowMinutes in startMinutes until endMinutes
-            } else {
-                nowMinutes !in endMinutes until startMinutes
-            }
-
-        val isOverlayVisible = dimOverlay.isVisible
-        if (shouldDim && !isOverlayVisible) {
-            screenDim(true)
-        } else if (!shouldDim && isOverlayVisible) {
-            screenDim(false)
-        }
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            hideSystemUI()
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            @Suppress("DEPRECATION") val wl = pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+                "immichframe:wake"
+            )
+            wl.acquire(3000)
         }
     }
 
@@ -937,8 +752,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-        hideSystemUI()
 
+        scheduleNextTurnOff()
     }
 
     override fun onDestroy() {
@@ -947,36 +762,62 @@ class MainActivity : AppCompatActivity() {
         handler.removeCallbacksAndMessages(null)
     }
 
-    private fun loadWebViewWithRetry(
-        url: String,
-        attempt: Int = 1,
-        maxAttempts: Int = 36
-    ) {
-        lifecycleScope.launch {
-            val reachable = withContext(Dispatchers.IO) {
-                Helpers.isServerReachable(url)
-            }
+    fun isDuringDimHours(): Boolean {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
 
-            if (reachable) {
-                webView.loadUrl(url)
-            } else if (attempt <= maxAttempts) {
-                Toast.makeText(
-                    this@MainActivity,
-                    "Connecting to server... Attempt $attempt of $maxAttempts",
-                    Toast.LENGTH_SHORT
-                ).show()
+        val startHour = prefs.getInt("dimStartHour", 22)
+        val startMinute = prefs.getInt("dimStartMinute", 0)
+        val endHour = prefs.getInt("dimEndHour", 7)
+        val endMinute = prefs.getInt("dimEndMinute", 0)
 
-                delay(5_000)
-                loadWebViewWithRetry(url, attempt + 1, maxAttempts)
-            } else {
-                Toast.makeText(
-                    this@MainActivity,
-                    "Could not connect to server after $maxAttempts attempts",
-                    Toast.LENGTH_LONG
-                ).show()
+        val now = Calendar.getInstance()
+        val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
 
-                webView.loadUrl(url)
+        val startMinutes = startHour * 60 + startMinute
+        val endMinutes = endHour * 60 + endMinute
+
+        return if (startMinutes < endMinutes) {
+            // Same-day range (e.g. 09:00 → 18:00)
+            nowMinutes in startMinutes until endMinutes
+        } else {
+            // Overnight range (e.g. 22:00 → 07:00)
+            nowMinutes !in endMinutes..<startMinutes
+        }
+    }
+
+    fun scheduleNextTurnOff() {
+        val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
+
+        val prefs = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        val hour = prefs.getInt("dimStartHour", 22)
+        val minute = prefs.getInt("dimStartMinute", 0)
+
+        val intent = Intent(this, AlarmReceiver::class.java);
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            this,
+            1001,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+
+            // If time already passed today → schedule tomorrow
+            if (timeInMillis <= System.currentTimeMillis()) {
+                add(Calendar.DAY_OF_YEAR, 1)
             }
         }
+
+        Log.d("alarm", "schedule alarm at: ${calendar.timeInMillis}")
+
+        alarmManager.setExact(
+            AlarmManager.RTC_WAKEUP,
+            calendar.timeInMillis,
+            pendingIntent
+        )
     }
 }

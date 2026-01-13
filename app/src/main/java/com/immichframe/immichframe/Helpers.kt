@@ -9,23 +9,12 @@ import android.util.Base64
 import androidx.core.graphics.scale
 import com.immichframe.immichframe.moderntls.ModernTlsOkHttpClient.enableModernTls
 import okhttp3.OkHttpClient
-import okhttp3.Request
 import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
-import java.util.concurrent.TimeUnit
 
 object Helpers {
-    fun textSizeMultiplier(context: Context, currentSizeSp: Float, multiplier: Float): Float {
-        val resources = context.resources
-        val fontScale = resources.configuration.fontScale
-        val density = resources.displayMetrics.density
-        val currentSizePx = currentSizeSp * density * fontScale
-        val newSizePx = currentSizePx * multiplier
-
-        return newSizePx / (density * fontScale)
-    }
 
     fun cssFontSizeToSp(cssSize: String?, context: Context, baseFontSizePx: Float = 16f): Float {
         val resources = context.resources
@@ -162,9 +151,6 @@ object Helpers {
 
         @GET("api/Config")
         fun getServerSettings(): Call<ServerSettings>
-
-        @GET("api/Weather")
-        fun getWeather(): Call<Weather>
     }
 
     fun createRetrofit(baseUrl: String, authSecret: String, headers: String): Retrofit {
@@ -195,24 +181,4 @@ object Helpers {
         return Retrofit.Builder().baseUrl(normalizedBaseUrl).client(client)
             .addConverterFactory(GsonConverterFactory.create()).build()
     }
-
-    private val reachabilityClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .build()
-
-    fun isServerReachable(url: String): Boolean {
-        return try {
-            val request = Request.Builder()
-                .url(url)
-                .head()
-                .build()
-            reachabilityClient.newCall(request).execute().use {
-                true // any HTTP response = reachable
-            }
-        } catch (e: Exception) {
-            false
-        }
-    }
-
 }
